@@ -1,7 +1,7 @@
 # Skynet Counter
 
 A 0–100 gauge of how close the AI news cycle is to sounding like a Skynet origin
-story. A Studio pipeline scrapes three feeds, scores what is new against a closed
+story. A Studio pipeline scrapes five feeds, scores what is new against a closed
 list of weighted keywords, and writes the result to SQLite. The Next.js frontend
 only reads that — it never triggers a run.
 
