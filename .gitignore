@@ -7,5 +7,7 @@ data/*.db-*
 *.tsbuildinfo
 next-env.d.ts
 .env*
+
+# Private local notes
 CLAUDE.local.md
 .claude/
