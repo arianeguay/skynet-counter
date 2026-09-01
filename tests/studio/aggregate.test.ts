@@ -121,3 +121,26 @@ test(
     expect(out.feedErrors.map((f) => f.source)).toEqual(['Ars Technica Security', 'Hacker News']);
   })
 );
+
+// Deleting a feed from the input list is what you do when it stays dead, so its
+// row must not outlive the list and keep naming a source nothing fetches.
+test(
+  'a feed dropped from the input list stops being reported',
+  withDb(async (dbPath) => {
+    await runAggregate(dbPath, [
+      feed('Ars Technica Security', 'responded 404'),
+      feed('Krebs on Security'),
+    ]);
+    const out = await runAggregate(dbPath, [feed('Krebs on Security')]);
+
+    expect(out.feedErrors).toEqual([]);
+
+    const db = new Database(dbPath);
+    const sources = db
+      .query<{ source: string }, []>('SELECT source FROM feed_health')
+      .all()
+      .map((r) => r.source);
+    db.close();
+    expect(sources).toEqual(['Krebs on Security']);
+  })
+);
