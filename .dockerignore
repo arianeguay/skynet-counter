@@ -1,0 +1,6 @@
+node_modules
+.next
+data
+.studio/runs
+.studio/config.yaml
+.git

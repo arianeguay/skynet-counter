@@ -1,0 +1,8 @@
+node_modules/
+.next/
+data/*.db
+data/*.db-*
+.studio/config.yaml
+.studio/runs/
+*.tsbuildinfo
+next-env.d.ts
