@@ -12,12 +12,15 @@ RUN bun --bun next build
 
 FROM base AS web
 ENV NODE_ENV=production HOME=/home/bun
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/.next ./.next
-COPY package.json next.config.ts postcss.config.mjs ./
-COPY src ./src
+COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
+COPY --from=build --chown=bun:bun /app/.next ./.next
+COPY --chown=bun:bun package.json next.config.ts postcss.config.mjs ./
+COPY --chown=bun:bun src ./src
+# --chown on each COPY, never `chown -R` after: a recursive chown over
+# node_modules rewrites the entire 1.4 GB layer, which stalled the build for
+# 15 minutes on apollon.
 # /data exists in the image so the named volume inherits this ownership.
-RUN mkdir -p /data && chown -R bun:bun /data /app
+RUN mkdir -p /data && chown bun:bun /data
 USER bun
 EXPOSE 3000
 CMD ["bun", "--bun", "next", "start"]
@@ -31,8 +34,8 @@ FROM base AS pipeline
 ENV BUN_INSTALL=/usr/local HOME=/home/bun
 RUN bun install -g @studio-foundation/cli@0.17.0 @anthropic-ai/claude-code \
  && chmod +x /usr/local/install/global/node_modules/@studio-foundation/cli-linux-x64*/studio
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN mkdir -p /data && chown -R bun:bun /data /app
+COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
+COPY --chown=bun:bun . .
+RUN mkdir -p /data && chown bun:bun /data
 USER bun
 CMD ["/app/docker/run-loop.sh"]
