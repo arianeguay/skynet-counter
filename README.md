@@ -41,7 +41,9 @@ studio logs <run-id>
 ```
 
 The first run scores everything the feeds return; later runs only score what the
-dedupe stage has not seen before, so they are much cheaper.
+dedupe stage has not seen before. When it finds nothing new the scoring group is
+skipped outright (`condition: stages.dedupe.output.new_count > 0`) and the run costs
+zero tokens — which is most runs on an hourly schedule.
 
 ## Run the frontend
 
