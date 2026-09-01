@@ -107,6 +107,13 @@ filters on `score IS NOT NULL`, and absent from the counter's decayed sum, so it
 the number as well as the log. `counter` is a single row, recomputed from `articles`
 on every run and never asserted by a stage. The frontend only calls `readSnapshot()`.
 
+`feed_health` is one row per source, written by `aggregate` from the `fetch` outputs,
+and it is where a dead feed becomes visible — nothing else in the run reports one, since
+`fetch-feed.ts` deliberately does not throw. It is a table rather than a column on
+`counter` because `openDb()` has no migrations: `CREATE TABLE IF NOT EXISTS` reaches an
+existing database, `ADD COLUMN` would have needed a hand-run `ALTER` on the live volume.
+Add state here the same way — a new table, never a column on an old one.
+
 The file is gitignored. The history that matters — the one behind the live counter —
 exists only on the host serving the site, never in a checkout.
 

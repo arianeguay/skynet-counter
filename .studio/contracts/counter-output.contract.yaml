@@ -5,6 +5,7 @@ schema:
     - counter
     - updatedAt
     - articles
+    - feedErrors
   fields:
     counter:
       type: number
@@ -20,3 +21,11 @@ schema:
           - source
           - date
           - score
+    feedErrors:
+      type: array
+      items:
+        type: object
+        required_fields:
+          - source
+          - error
+          - since

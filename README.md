@@ -180,9 +180,18 @@ host would write a `data/skynet.db` nothing serves.
   "articles": [
     { "title": "…", "url": "…", "source": "Ars Technica", "date": "…", "score": 20,
       "keywords": ["sandbox escape", "zero-day"], "evidence": "…" }
+  ],
+  "feedErrors": [
+    { "source": "Ars Technica Security", "error": "Ars Technica Security responded 404",
+      "since": "2026-08-14T18:00:00.000Z" }
   ]
 }
 ```
+
+`feedErrors` is empty when every feed answered on the last sweep. A dead feed never
+fails the run — it costs the counter its input silently — so this array is the only
+place it shows up; `since` is the first sweep it failed on, which is what tells a
+publisher's 502 apart from a URL that has been 404ing for weeks.
 
 ## Keyword weights
 

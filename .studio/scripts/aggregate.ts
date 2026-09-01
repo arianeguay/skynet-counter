@@ -13,8 +13,14 @@ interface Scored {
   evidence: string;
 }
 
-const ctx = await readContext<{ previous_outputs?: { score?: { articles?: Scored[] } } }>();
+const ctx = await readContext<{
+  previous_outputs?: {
+    fetch?: { outputs?: { source?: string; error?: string | null }[] };
+    score?: { articles?: Scored[] };
+  };
+}>();
 const scored = ctx.previous_outputs?.score?.articles ?? [];
+const feeds = ctx.previous_outputs?.fetch?.outputs ?? [];
 const now = Date.now();
 const scoredAt = new Date(now).toISOString();
 
@@ -44,9 +50,34 @@ for (const row of history) {
 
 const counter = Math.round(Math.min(100, Math.max(0, BASE + signal / DIVISOR)) * 10) / 10;
 
+// A dead feed costs the counter its input without failing the sweep, so the only
+// trace it leaves is this row. `failing_since` is what separates one publisher's
+// 502 from a URL that has been 404ing for a fortnight — COALESCE keeps the first
+// failure's timestamp until a run actually succeeds and clears it.
+const health = db.prepare(
+  `INSERT INTO feed_health (source, error, failing_since, checked_at) VALUES (?, ?, ?, ?)
+   ON CONFLICT(source) DO UPDATE SET
+     error = excluded.error,
+     failing_since = CASE WHEN excluded.error IS NULL THEN NULL
+                          ELSE COALESCE(feed_health.failing_since, excluded.failing_since) END,
+     checked_at = excluded.checked_at`
+);
+db.transaction(() => {
+  for (const f of feeds) {
+    if (!f.source) continue;
+    const error = f.error ?? null;
+    health.run(f.source, error, error ? scoredAt : null, scoredAt);
+  }
+})();
+
 db.query('INSERT INTO counter (id, value, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
   .run(counter, scoredAt);
 db.close();
 
 const snapshot = readSnapshot();
-emit({ counter, updatedAt: scoredAt, articles: snapshot.articles });
+emit({
+  counter,
+  updatedAt: scoredAt,
+  articles: snapshot.articles,
+  feedErrors: snapshot.feedErrors,
+});
