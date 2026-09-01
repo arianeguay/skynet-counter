@@ -5,6 +5,9 @@ counter to SQLite; the Next.js app reads that snapshot and never triggers a run.
 [README.md](README.md) has the setup, the commands and the counter formula — this file
 has what to know before changing anything.
 
+Issues live in the [skynet-counter Linear project](https://linear.app/studioag/project/skynet-counter-1866aa1101c8/overview);
+every issue for this repo belongs in it.
+
 ## Pipeline
 
 [.studio/pipelines/skynet-counter.pipeline.yaml](.studio/pipelines/skynet-counter.pipeline.yaml)
