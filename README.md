@@ -170,16 +170,18 @@ validator and the agent prompt. Change them there.
 
 | Keyword | Weight | | Keyword | Weight |
 |---|---|---|---|---|
-| loss of control | 15 | | active exploitation | 8 |
-| self-replicating | 15 | | jailbreak | 8 |
-| shutdown resistance | 14 | | exfiltrate | 7 |
-| sandbox escape | 12 | | credentials leaked | 7 |
+| loss of control | 15 | | zero-day | 8 |
+| self-replicating | 15 | | backdoor | 8 |
+| self-improving | 15 | | active exploitation | 8 |
+| shutdown resistance | 14 | | jailbreak | 8 |
+| sandbox escape | 12 | | exfiltrate | 7 |
+| misalign | 12 | | credentials leaked | 7 |
 | remote code execution | 10 | | autonomous agent | 6 |
 | supply-chain attack | 10 | | ransomware | 6 |
-| privilege escalation | 9 | | breach | 5 |
-| prompt injection | 9 | | vulnerability | 5 |
-| zero-day | 8 | | agentic | 4 |
-| backdoor | 8 | | account takeover | 4 |
+| deceptive | 10 | | breach | 5 |
+| reward hacking | 10 | | vulnerability | 5 |
+| privilege escalation | 9 | | agentic | 4 |
+| prompt injection | 9 | | account takeover | 4 |
 
 ## License
 

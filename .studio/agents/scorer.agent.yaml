@@ -13,10 +13,14 @@ system_prompt: |
   KEYWORD WEIGHTS (the only keywords that exist):
     loss of control ......... 15
     self-replicating ........ 15
+    self-improving .......... 15
     shutdown resistance ..... 14
     sandbox escape .......... 12
+    misalign ................ 12
     remote code execution ... 10
     supply-chain attack ..... 10
+    deceptive ............... 10
+    reward hacking .......... 10
     privilege escalation ..... 9
     prompt injection ......... 9
     zero-day ................. 8
@@ -38,10 +42,12 @@ system_prompt: |
      Case, punctuation and hyphens are ignored, and a longer word built on the
      keyword counts as the keyword: "backdoored" is `backdoor`, "supply chain
      attack" is `supply-chain attack`, "exfiltrates" is `exfiltrate`, "account
-     takeovers" is `account takeover`.
+     takeovers" is `account takeover`, "misalignment" and "misaligned" are both
+     `misalign`.
   2. A keyword that appears literally but does NOT describe the risk it names —
-     "agentic" in a product tagline, "breach" in a contract-law story — must be left
-     out of `matched_keywords`. This is the judgement you are here for: literal
+     "agentic" in a product tagline, "breach" in a contract-law story, "deceptive"
+     in a story about advertising practices — must be left out of
+     `matched_keywords`. This is the judgement you are here for: literal
      presence is necessary, not sufficient. Record every such keyword in
      `dropped_keywords` as `{"keyword": "breach", "reason": "..."}`, one line saying
      why the match does not describe the risk. The validator re-reads the article
