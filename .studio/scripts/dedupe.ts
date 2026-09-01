@@ -38,8 +38,12 @@ function shareBySource(pool: RawArticle[], cap: number): RawArticle[] {
   return picked.sort(byNewest);
 }
 
-const ctx = await readContext<{ previous_outputs?: Record<string, { articles?: RawArticle[] }> }>();
-const fetched = Object.values(ctx.previous_outputs ?? {}).flatMap((o) => o.articles ?? []);
+// The `fetch` map stage collects its per-feed runs into one output; `outputs`
+// holds the batch of every feed that succeeded, in list order.
+const ctx = await readContext<{
+  previous_outputs?: { fetch?: { outputs?: { articles?: RawArticle[] }[] } };
+}>();
+const fetched = (ctx.previous_outputs?.fetch?.outputs ?? []).flatMap((o) => o.articles ?? []);
 
 const db = openDb();
 const knownUrls = new Set(

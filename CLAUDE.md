@@ -15,7 +15,7 @@ is the whole flow.
 
 | Step | Executor | Where it lives |
 |---|---|---|
-| `fetch` (parallel group ×5) | script | [.studio/scripts/fetch-feed.ts](.studio/scripts/fetch-feed.ts) |
+| `fetch` (map over `input.feeds`) | script, one child run per feed | [.studio/pipelines/fetch-feed.pipeline.yaml](.studio/pipelines/fetch-feed.pipeline.yaml), [.studio/scripts/fetch-feed.ts](.studio/scripts/fetch-feed.ts) |
 | `dedupe` | script | [.studio/scripts/dedupe.ts](.studio/scripts/dedupe.ts) |
 | `scoring` (group, 3 iterations) | agent + script | [.studio/agents/scorer.agent.yaml](.studio/agents/scorer.agent.yaml), [.studio/scripts/validate-scores.ts](.studio/scripts/validate-scores.ts) |
 | `aggregate` | script | [.studio/scripts/aggregate.ts](.studio/scripts/aggregate.ts) |
@@ -30,10 +30,24 @@ The scoring group is skipped when `dedupe` finds nothing new
 (`condition: stages.dedupe.output.new_count > 0`), so most hourly sweeps cost zero
 tokens. Making that group run unconditionally is a cost regression, not a cleanup.
 
-A fetch stage never throws. A parallel group reports `failed` the moment one stage
-fails — `on_failure: collect-all` only keeps the siblings running — so one publisher's
-502 would take the whole sweep down. A dead feed emits an empty batch with the reason
-instead.
+### Adding a feed
+
+Add two lines to `feeds:` in
+[.studio/inputs/default.input.yaml](.studio/inputs/default.input.yaml). Nothing else:
+`fetch` is a map stage over that list, so the feed table lives in exactly one place.
+It used to live in two — five near-identical stages whose names had to match a table in
+`fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
+
+A fetch run never throws on a dead feed; it emits an empty batch with the reason instead,
+and `on_item_failure: collect-all` keeps the other feeds' runs going.
+
+A map child does **not** receive its input as an object. The engine YAML-dumps the item
+into `additional_context`, so `fetch-feed.ts` reads it back through `readInput()` in
+`rss.ts` rather than `readContext()`.
+
+`dedupe` reads `stages.fetch.output.outputs` — a map stage propagates one collected
+output (`{ total, succeeded, failed, resumed, results[], outputs[] }`), not one output
+per feed.
 
 [.studio/invariants.md](.studio/invariants.md) is injected into every agent's system
 prompt automatically; it is the place for a rule the scorer must obey, not a comment.
