@@ -148,6 +148,19 @@ systemctl --user enable --now skynet-counter.timer
 Lingering is what keeps the user manager alive after logout. Without it the timer stops
 when you log out, which is exactly when an hourly sweep should still be running.
 
+## Deploy
+
+Once the site runs on another machine, name it in `.env` and let `make` do the trip:
+
+```bash
+cp .env.example .env     # set DEPLOY_HOST to an ssh alias or user@host
+make deploy
+```
+
+That pulls `main` on the server and rebuilds both containers over it. It is one target
+on purpose: `web` and `pipeline` build the tree into an image, so a pull without the
+rebuild leaves the old code serving.
+
 ## API
 
 `GET /api/skynet` — the last snapshot, never a fresh run:
