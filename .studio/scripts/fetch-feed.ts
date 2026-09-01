@@ -3,7 +3,7 @@ import { parseFeed, readContext, emit, type RawArticle } from './rss.ts';
 const FEEDS: Record<string, { source: string; url: string }> = {
   'fetch-arstechnica-security': {
     source: 'Ars Technica Security',
-    url: 'https://feeds.arstechnica.com/arstechnica/security',
+    url: 'https://arstechnica.com/security/feed',
   },
   'fetch-arstechnica-ai': {
     source: 'Ars Technica AI',

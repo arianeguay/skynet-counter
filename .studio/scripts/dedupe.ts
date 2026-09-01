@@ -10,8 +10,8 @@ const byNewest = (a: RawArticle, b: RawArticle): number =>
   b.publishedAt.localeCompare(a.publishedAt);
 
 // A burst on one feed must not push another feed out of the batch. A global
-// newest-first slice let TechCrunch AI and Hacker News — which publish far more
-// often than the Ars Technica security feed — fill all 25 slots, so the items
+// newest-first slice let the highest-volume feeds — which publish far more
+// often than Krebs on Security — fill all 25 slots, so the items
 // that reliably carry scoring vocabulary fell off the bottom and only reached
 // the scorer sweeps later. Each source contributes in turn instead, newest
 // first, until its own supply runs out; the room a quiet feed leaves is still
