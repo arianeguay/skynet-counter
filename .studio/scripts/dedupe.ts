@@ -11,12 +11,15 @@ const fetched = Object.values(ctx.previous_outputs ?? {}).flatMap((o) => o.artic
 
 const db = openDb();
 const knownUrls = new Set(
-  db.query<{ url: string }, []>('SELECT url FROM articles').all().map((r) => r.url)
+  db
+    .query<{ url: string }, []>('SELECT url FROM articles WHERE score IS NOT NULL')
+    .all()
+    .map((r) => r.url)
 );
 const knownTitles = new Set(
   db
     .query<{ title: string }, [number]>(
-      'SELECT title FROM articles ORDER BY COALESCE(scored_at, published_at) DESC LIMIT ?'
+      'SELECT title FROM articles WHERE score IS NOT NULL ORDER BY scored_at DESC LIMIT ?'
     )
     .all(HISTORY_WINDOW)
     .map((r) => normalize(r.title))
