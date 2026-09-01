@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #050505;
+  --color-panel: #0b0b0d;
+  --color-hairline: #1c1c20;
+  --color-ash: #6b6b73;
+  --color-bone: #d6d6d8;
+  --color-blood: #ff2a2a;
+  --color-blood-dim: #7a0f0f;
+  --color-amber: #d99114;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-void);
+  color: var(--color-bone);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Two overlays: static scanlines, and one sweep crawling down every 8s. */
+.crt::before,
+.crt::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.crt::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.crt::after {
+  background: linear-gradient(to bottom, transparent, rgba(255, 42, 42, 0.05), transparent);
+  height: 32vh;
+  animation: sweep 8s linear infinite;
+}
+
+@keyframes sweep {
+  from { transform: translateY(-40vh); }
+  to { transform: translateY(140vh); }
+}
+
+.vignette {
+  background: radial-gradient(ellipse at 50% 35%, rgba(255, 42, 42, 0.07), transparent 60%);
+}
+
+/* RGB split, driven from JS so it fires on an irregular beat instead of a loop. */
+.glitch {
+  position: relative;
+  animation: glitch-shift 220ms steps(2, end) 1;
+  text-shadow:
+    0.06em 0 0 rgba(255, 0, 64, 0.85),
+    -0.06em 0 0 rgba(0, 255, 238, 0.75);
+}
+
+@keyframes glitch-shift {
+  0%   { transform: translate(0); clip-path: inset(0 0 0 0); }
+  20%  { transform: translate(-3px, 1px); clip-path: inset(18% 0 42% 0); }
+  40%  { transform: translate(4px, -2px); clip-path: inset(58% 0 12% 0); }
+  60%  { transform: translate(-2px, 0); clip-path: inset(4% 0 70% 0); }
+  80%  { transform: translate(2px, 1px); clip-path: inset(72% 0 6% 0); }
+  100% { transform: translate(0); clip-path: inset(0 0 0 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt::after,
+  .glitch {
+    animation: none;
+  }
+}
