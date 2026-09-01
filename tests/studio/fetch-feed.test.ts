@@ -55,20 +55,18 @@ interface FetchOutput {
   articles: { summary: string }[];
 }
 
-async function fetchFrom(hydrate: boolean, post?: string, postType?: string, secondPost?: string) {
+async function fetchFrom(post?: string, postType?: string, secondPost?: string) {
   const feed = serveFeed(post, postType, secondPost);
   try {
-    const { out, err } = await runFetch(
-      `source: Hacker News\nurl: ${feed.url.origin}/feed\n` + (hydrate ? 'hydrate: true\n' : '')
-    );
+    const { out, err } = await runFetch(`source: Hacker News\nurl: ${feed.url.origin}/feed\n`);
     return { output: JSON.parse(out) as FetchOutput, err };
   } finally {
     feed.stop(true);
   }
 }
 
-async function summaryFor(hydrate: boolean, post?: string, postType?: string) {
-  const { output } = await fetchFrom(hydrate, post, postType);
+async function summaryFor(post?: string, postType?: string) {
+  const { output } = await fetchFrom(post, postType);
   return output.articles[0]?.summary ?? '';
 }
 
@@ -83,49 +81,37 @@ test('reads source and url out of the engine dump, quoted or not', async () => {
   expect(result.error).not.toBeNull();
 });
 
-// Hacker News is the feed the flag exists for; losing it there restores the
-// structural zero this whole path was added to fix, silently.
-test('the Hacker News feed is the one flagged for hydration', () => {
-  const input = readFileSync('.studio/inputs/default.input.yaml', 'utf8');
-  const flagged = [...input.matchAll(/^ {2}- source: (.+)\n(?: {4}.+\n)*? {4}hydrate: true$/gm)];
-  expect(flagged.map((m) => m[1])).toEqual(['Hacker News']);
-});
-
-test('hydrate: true scores the linked page instead of the boilerplate summary', async () => {
-  const summary = await summaryFor(true);
+test('the linked page replaces the boilerplate summary', async () => {
+  const summary = await summaryFor();
   expect(summary).toContain('exploited 87%');
   // Chrome is stripped, so a nav item cannot lend the page a keyword it never used.
   expect(summary).not.toContain('Ransomware');
   expect(summary).not.toContain('color:red');
 });
 
-test('without the flag a feed pays for no extra request', async () => {
-  expect(await summaryFor(false)).toBe(BOILERPLATE);
-});
-
 // Hydration is best-effort: a dead link must cost the article its page text, not
 // its row. Failing back to the feed summary is exactly today's behaviour.
 test('a linked page that does not answer leaves the feed summary in place', async () => {
-  expect(await summaryFor(true, 'http://127.0.0.1:1/post')).toBe(BOILERPLATE);
+  expect(await summaryFor('http://127.0.0.1:1/post')).toBe(BOILERPLATE);
 });
 
 // Falling back is silent by design, and silence here is the failure mode: the
 // batch is scored on boilerplate and the feed still reports a clean fetch.
-test('a hydrated feed whose links all fail reports the same way a dead feed does', async () => {
-  const { output } = await fetchFrom(true, 'http://127.0.0.1:1/post');
+test('a feed whose links all fail reports the same way a dead feed does', async () => {
+  const { output } = await fetchFrom('http://127.0.0.1:1/post');
   expect(output.hydration_failures).toBe(1);
   expect(output.error).toBe('Hacker News loaded 0 of 1 linked pages');
 });
 
 test('a batch that loses only some of its pages reports the count on stderr', async () => {
-  const { output, err } = await fetchFrom(true, undefined, undefined, 'http://127.0.0.1:1/post');
+  const { output, err } = await fetchFrom(undefined, undefined, 'http://127.0.0.1:1/post');
   expect(output.hydration_failures).toBe(1);
   expect(output.error).toBeNull();
   expect(err).toContain('Hacker News loaded 1 of 2 linked pages');
 });
 
-test('a hydrated feed whose pages all load reports no degradation', async () => {
-  const { output, err } = await fetchFrom(true);
+test('a feed whose pages all load reports no degradation', async () => {
+  const { output, err } = await fetchFrom();
   expect(output.hydration_failures).toBe(0);
   expect(output.error).toBeNull();
   expect(err).toBe('');
@@ -135,7 +121,7 @@ test('a hydrated feed whose pages all load reports no degradation', async () => 
 // content-type check is the only thing that can keep it out of the summary —
 // drop that check and this is the test that notices.
 test('a linked page that is not HTML leaves the feed summary in place', async () => {
-  expect(await summaryFor(true, undefined, 'application/pdf')).toBe(BOILERPLATE);
+  expect(await summaryFor(undefined, 'application/pdf')).toBe(BOILERPLATE);
 });
 
 test('every feed the input declares carries a source and a url', () => {
