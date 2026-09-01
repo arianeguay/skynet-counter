@@ -22,7 +22,10 @@ CMD ["bun", "--bun", "next", "start"]
 FROM base AS pipeline
 ENV PATH=/root/.bun/bin:$PATH
 # The claude-code provider spawns the Claude Code CLI instead of calling an API.
-RUN bun install -g @studio-foundation/cli@0.17.0 @anthropic-ai/claude-code
+# chmod: `bun install -g` drops the executable bit on the CLI's platform binary,
+# so studio dies with EACCES spawning its own baseline build.
+RUN bun install -g @studio-foundation/cli@0.17.0 @anthropic-ai/claude-code \
+ && chmod +x /root/.bun/install/global/node_modules/@studio-foundation/cli-linux-x64*/studio
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 CMD ["/app/docker/run-loop.sh"]
