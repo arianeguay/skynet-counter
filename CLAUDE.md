@@ -38,12 +38,13 @@ Add two lines to `feeds:` in
 It used to live in two — five near-identical stages whose names had to match a table in
 `fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
 
-A third line, `hydrate: true`, is for a feed that ships no article text — hnrss puts only
-"Article URL / Comments URL / Points" in every `<description>`, so matching title-and-summary
-matches the title alone and the feed scores a structural zero (STU-1192). The stage then
-reads each linked page and scores that text instead, at one request per item. It is a
-per-feed flag and not a thin-summary heuristic because Ars Technica's summaries run 9-15
-words, the same range as HN's boilerplate — no threshold separates them.
+The stage reads each linked page and scores that text rather than the RSS summary, at one
+request per item. That is unconditional, and there is no per-feed opt-out: measuring all
+five feeds on 2026-09-01 (STU-1200) found the summary worse everywhere, from 3.3x on the
+mildest feed to hnrss, whose "Article URL / Comments URL / Points" boilerplate scores a
+structural zero (STU-1192). A feed added later that should *not* be hydrated needs the
+flag put back, not a threshold — Ars Technica's summaries run 9-15 words, the same range
+as HN's boilerplate, so no word count separates them.
 
 A fetch run never throws on a dead feed; it emits an empty batch with the reason instead,
 and `on_item_failure: collect-all` keeps the other feeds' runs going. Hydration follows the
