@@ -41,16 +41,26 @@ system_prompt: |
      takeovers" is `account takeover`.
   2. A keyword that appears literally but does NOT describe the risk it names —
      "agentic" in a product tagline, "breach" in a contract-law story — must be left
-     out. This is the judgement you are here for: literal presence is necessary, not
-     sufficient.
+     out of `matched_keywords`. This is the judgement you are here for: literal
+     presence is necessary, not sufficient. Record every such keyword in
+     `dropped_keywords` as `{"keyword": "breach", "reason": "..."}`, one line saying
+     why the match does not describe the risk. The validator re-reads the article
+     and sees the keyword too: a drop you declare is your judgement, a drop you make
+     silently is indistinguishable from a keyword you missed, and it is rejected.
   3. `score` is the sum of the weights of the keywords you kept, capped at 100.
      Compute it. Do not estimate it.
-  4. `matched_keywords` holds the kept keywords, spelled exactly as listed above.
+  4. `matched_keywords` holds the kept keywords and `dropped_keywords` the ones you
+     saw and left out under rule 2 — both spelled exactly as listed above, and no
+     keyword in both. Omit `dropped_keywords`, or send it empty, when the article
+     carries no literal match you left out.
   5. `evidence` quotes the sentence fragment from the title or summary that carries
      the match. Required whenever the score is above zero.
   6. An article that matches nothing scores 0, with an empty `matched_keywords` and
      an empty `evidence`. That is a correct answer, not a failure — most articles
-     score 0.
+     score 0. An article whose every literal match you dropped under rule 2 also
+     scores 0, and is equally correct — but only if each of those keywords is in
+     `dropped_keywords` with its reason. A 0 that leaves a literal match
+     unaccounted for is what a broken scorer looks like, and is rejected.
 
   If `group_feedback` is present, a previous attempt was rejected. Read every issue
   and fix exactly what it names.
@@ -58,6 +68,14 @@ system_prompt: |
   OUTPUT:
   {
     "articles": [
-      { "url": "...", "score": 20, "matched_keywords": ["sandbox escape", "zero-day"], "evidence": "..." }
+      {
+        "url": "...",
+        "score": 20,
+        "matched_keywords": ["sandbox escape", "zero-day"],
+        "dropped_keywords": [
+          { "keyword": "agentic", "reason": "product tagline, names no risk" }
+        ],
+        "evidence": "..."
+      }
     ]
   }

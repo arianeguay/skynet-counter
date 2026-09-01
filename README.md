@@ -60,7 +60,7 @@ route can import `bun:sqlite`. Running them under Node will fail at that import.
 |---|---|---|
 | `fetch` (parallel group) | script ×3 | One fetcher per feed — TechCrunch AI, Ars Technica, HN. A feed that errors emits an empty batch with the reason, so one publisher's 502 does not take the sweep down. (A parallel group reports `failed` on any failed stage — `on_failure: collect-all` only keeps the siblings running.) |
 | `dedupe` | script | Drops anything already in SQLite, by URL and by normalized title over the last 100 articles. Caps the run at 25 new articles. |
-| `scoring` (group, 3 iterations) | claude-code + script | `score` applies the weighted keywords; `validate-scores` recomputes every score and checks each claimed keyword literally appears in the article. A mismatch rejects the group and `score` retries with the issues as feedback. |
+| `scoring` (group, 3 iterations) | claude-code + script | `score` applies the weighted keywords; `validate-scores` recomputes every score and checks each claimed keyword literally appears in the article. A keyword that appears literally but names no real risk is dropped on purpose, and the scorer says so in `dropped_keywords` with a reason — an article whose every literal match is left out silently is rejected. A mismatch rejects the group and `score` retries with the issues as feedback. |
 | `aggregate` | script | Persists the scores, recomputes the counter, writes the snapshot. |
 
 **Anti-theatre:** the validator is a script, not a second model. It cannot be talked
