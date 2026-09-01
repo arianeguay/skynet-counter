@@ -1,0 +1,29 @@
+services:
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "3000:3000"
+    environment:
+      SKYNET_DB: /data/skynet.db
+    volumes:
+      - skynet-data:/data
+    restart: unless-stopped
+
+  pipeline:
+    build:
+      context: .
+      target: pipeline
+    environment:
+      SKYNET_DB: /data/skynet.db
+      PIPELINE_INTERVAL: ${PIPELINE_INTERVAL:-3600}
+    volumes:
+      - skynet-data:/data
+      # The provider spawns `claude`, which authenticates from the host session.
+      # Read-write: the CLI refreshes its own token.
+      - ${HOME}/.claude:/root/.claude
+    restart: unless-stopped
+
+volumes:
+  skynet-data:
