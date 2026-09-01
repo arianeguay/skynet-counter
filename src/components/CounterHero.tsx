@@ -25,6 +25,17 @@ export function CounterHero({
   const [glitching, setGlitching] = useState(false);
   const stale = Date.parse(updatedAt) === 0;
   const status = statusLine(counter);
+  // Server and browser sit in different zones, so the local stamp can only be
+  // computed after mount; until then the UTC string the server rendered stands.
+  const [sweep, setSweep] = useState(`${updatedAt.slice(0, 19).replace('T', ' ')}Z`);
+
+  useEffect(() => {
+    setSweep(
+      new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short', timeStyle: 'medium' }).format(
+        new Date(updatedAt),
+      ),
+    );
+  }, [updatedAt]);
 
   // One beat for every glitching element — independent timers would read as
   // several unrelated faults instead of one.
@@ -91,7 +102,7 @@ export function CounterHero({
         <GlitchNumber value={counter} glitching={glitching} />
         <p className="text-sm tracking-[0.25em] text-blood">{status}</p>
         <p className="text-xs text-ash">
-          {stale ? 'NEVER RUN' : `LAST SWEEP ${updatedAt.slice(0, 19).replace('T', ' ')}Z`}
+          {stale ? 'NEVER RUN' : `LAST SWEEP ${sweep}`}
           <span className="mx-2 text-hairline">|</span>
           {scored} ARTICLES SCORED
         </p>
