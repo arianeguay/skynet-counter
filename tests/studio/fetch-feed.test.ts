@@ -16,8 +16,10 @@ async function runFetch(additional_context: string) {
 const BOILERPLATE = 'Article URL: http://example.com Comments URL: https://news.ycombinator.com/item?id=1';
 
 // hnrss's shape: no article text in the description, everything in the link.
-// `post` overrides where that link points, to stand in for a dead page.
-function serveFeed(post?: string) {
+// `post` overrides where that link points, to stand in for a dead page;
+// `postType` overrides what it answers with, to stand in for a link that is
+// not a web page at all.
+function serveFeed(post?: string, postType = 'text/html') {
   return Bun.serve({
     port: 0,
     fetch(req) {
@@ -28,7 +30,7 @@ function serveFeed(post?: string) {
             '<nav>Ransomware</nav>' +
             '<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p>' +
             '</body></html>',
-          { headers: { 'content-type': 'text/html' } }
+          { headers: { 'content-type': postType } }
         );
       }
       return new Response(
@@ -41,8 +43,8 @@ function serveFeed(post?: string) {
   });
 }
 
-async function summaryFor(hydrate: boolean, post?: string) {
-  const feed = serveFeed(post);
+async function summaryFor(hydrate: boolean, post?: string, postType?: string) {
+  const feed = serveFeed(post, postType);
   try {
     const { out } = await runFetch(
       `source: Hacker News\nurl: ${feed.url.origin}/feed\n` + (hydrate ? 'hydrate: true\n' : '')
@@ -89,6 +91,13 @@ test('without the flag a feed pays for no extra request', async () => {
 // its row. Failing back to the feed summary is exactly today's behaviour.
 test('a linked page that does not answer leaves the feed summary in place', async () => {
   expect(await summaryFor(true, 'http://127.0.0.1:1/post')).toBe(BOILERPLATE);
+});
+
+// HN links PDFs regularly. The body stays the same readable page, so the
+// content-type check is the only thing that can keep it out of the summary —
+// drop that check and this is the test that notices.
+test('a linked page that is not HTML leaves the feed summary in place', async () => {
+  expect(await summaryFor(true, undefined, 'application/pdf')).toBe(BOILERPLATE);
 });
 
 test('every feed the input declares carries a source and a url', () => {
