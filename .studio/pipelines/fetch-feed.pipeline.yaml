@@ -1,0 +1,17 @@
+name: fetch-feed
+description: Fetch and parse one RSS/Atom feed — run once per item by the skynet-counter `fetch` map stage
+version: 1
+
+stages:
+  - name: fetch
+    kind: fetch
+    executor: script
+    script: .studio/scripts/fetch-feed.ts
+    runtime: node
+    timeout_ms: 45000
+    contract: raw-articles
+    ralph:
+      max_attempts: 2
+    context:
+      include:
+        - input

@@ -25,7 +25,9 @@ const ARTICLE: Fetched = {
 async function runDedupe(dbPath: string, articles: Fetched[] = [ARTICLE]) {
   const proc = Bun.spawn(['bun', SCRIPT], {
     env: { ...process.env, SKYNET_DB: dbPath },
-    stdin: new TextEncoder().encode(JSON.stringify({ previous_outputs: { fetch: { articles } } })),
+    stdin: new TextEncoder().encode(
+      JSON.stringify({ previous_outputs: { fetch: { outputs: [{ articles }] } } })
+    ),
     stdout: 'pipe',
     stderr: 'inherit',
   });

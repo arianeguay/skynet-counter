@@ -71,3 +71,19 @@ export async function readContext<T>(): Promise<T> {
 export function emit(output: unknown): void {
   process.stdout.write(JSON.stringify(output));
 }
+
+// `context.include: [input]` does not hand a script its pipeline input — the
+// engine YAML-dumps it into `additional_context` first. A map stage's items are
+// flat string maps, so one `key: value` line per field is the whole document;
+// js-yaml single-quotes a value only when a plain scalar would be ambiguous.
+export async function readInput(): Promise<Record<string, string>> {
+  const { additional_context = '' } = await readContext<{ additional_context?: string }>();
+  return Object.fromEntries(
+    additional_context.split('\n').filter(Boolean).map((line) => {
+      const at = line.indexOf(': ');
+      const value = line.slice(at + 2);
+      const quoted = value.match(/^'(.*)'$/);
+      return [line.slice(0, at), quoted ? quoted[1].replaceAll("''", "'") : value];
+    })
+  );
+}

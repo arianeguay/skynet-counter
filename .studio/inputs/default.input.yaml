@@ -1,3 +1,17 @@
-# The pipeline pulls everything it needs from the feeds and from SQLite;
-# the input exists only so `studio run` has something to log.
+# The pipeline pulls everything else from the feeds and from SQLite; the input
+# exists to carry this list, which the `fetch` map stage fans out over. Adding a
+# feed is two lines here and nothing else — the sub-pipeline reads `source` and
+# `url` off the item.
 run: scheduled
+
+feeds:
+  - source: Ars Technica Security
+    url: https://arstechnica.com/security/feed
+  - source: Ars Technica AI
+    url: https://arstechnica.com/ai/feed
+  - source: The Hacker News
+    url: https://thehackernews.com/feeds/posts/default
+  - source: Krebs on Security
+    url: https://krebsonsecurity.com/feed/
+  - source: Hacker News
+    url: https://hnrss.org/newest?q=AI+OR+LLM+OR+agent+OR+exploit&points=80

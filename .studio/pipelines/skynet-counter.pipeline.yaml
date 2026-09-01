@@ -3,75 +3,15 @@ description: Scrape AI-risk news, score it against weighted keywords, and recomp
 version: 1
 
 stages:
-  - group: fetch
-    mode: parallel
-    max_iterations: 1
-    on_failure: collect-all
-    stages:
-      - name: fetch-arstechnica-security
-        kind: fetch
-        executor: script
-        script: .studio/scripts/fetch-feed.ts
-        runtime: node
-        timeout_ms: 45000
-        contract: raw-articles
-        ralph:
-          max_attempts: 2
-        context:
-          include:
-            - stage_name
-
-      - name: fetch-arstechnica-ai
-        kind: fetch
-        executor: script
-        script: .studio/scripts/fetch-feed.ts
-        runtime: node
-        timeout_ms: 45000
-        contract: raw-articles
-        ralph:
-          max_attempts: 2
-        context:
-          include:
-            - stage_name
-
-      - name: fetch-thehackernews
-        kind: fetch
-        executor: script
-        script: .studio/scripts/fetch-feed.ts
-        runtime: node
-        timeout_ms: 45000
-        contract: raw-articles
-        ralph:
-          max_attempts: 2
-        context:
-          include:
-            - stage_name
-
-      - name: fetch-krebs
-        kind: fetch
-        executor: script
-        script: .studio/scripts/fetch-feed.ts
-        runtime: node
-        timeout_ms: 45000
-        contract: raw-articles
-        ralph:
-          max_attempts: 2
-        context:
-          include:
-            - stage_name
-
-      - name: fetch-hn
-        kind: fetch
-        executor: script
-        script: .studio/scripts/fetch-feed.ts
-        runtime: node
-        timeout_ms: 45000
-        contract: raw-articles
-        ralph:
-          max_attempts: 2
-        context:
-          include:
-            - stage_name
+  # One sub-pipeline run per feed. The list is the pipeline input's, so adding a
+  # feed is a `default.input.yaml` edit and nothing else — the five near-identical
+  # stages this replaced had to keep their names in step with a table in
+  # fetch-feed.ts, and every hourly sweep failed the once they did not (STU-1191).
+  - map: fetch
+    over: input.feeds
+    pipeline: fetch-feed
+    concurrency: 5
+    on_item_failure: collect-all
 
   - name: dedupe
     kind: filter
