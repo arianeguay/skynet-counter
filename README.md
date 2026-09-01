@@ -167,11 +167,16 @@ validator and the agent prompt. Change them there.
 
 | Keyword | Weight | | Keyword | Weight |
 |---|---|---|---|---|
-| loss of control | 15 | | zero-day | 8 |
-| self-replicating | 15 | | autonomous agent | 6 |
-| shutdown resistance | 14 | | breach | 5 |
-| sandbox escape | 12 | | agentic | 4 |
-| privilege escalation | 9 | | | |
+| loss of control | 15 | | active exploitation | 8 |
+| self-replicating | 15 | | jailbreak | 8 |
+| shutdown resistance | 14 | | exfiltrate | 7 |
+| sandbox escape | 12 | | credentials leaked | 7 |
+| remote code execution | 10 | | autonomous agent | 6 |
+| supply-chain attack | 10 | | ransomware | 6 |
+| privilege escalation | 9 | | breach | 5 |
+| prompt injection | 9 | | vulnerability | 5 |
+| zero-day | 8 | | agentic | 4 |
+| backdoor | 8 | | account takeover | 4 |
 
 ## License
 

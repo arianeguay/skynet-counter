@@ -64,7 +64,6 @@ Changing a keyword or a weight means editing, in this order:
 1. `src/lib/keywords.ts` — the only copy that decides anything
 2. `.studio/agents/scorer.agent.yaml` — the prompt's `KEYWORD WEIGHTS` block
 3. `README.md` — the published weights table
-4. `.studio/invariants.md` — it states how large the list is
 
 ## The database
 
