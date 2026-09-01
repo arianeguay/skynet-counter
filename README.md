@@ -189,9 +189,14 @@ host would write a `data/skynet.db` nothing serves.
 ```
 
 `feedErrors` is empty when every feed answered on the last sweep. A dead feed never
-fails the run — it costs the counter its input silently — so this array is the only
-place it shows up; `since` is the first sweep it failed on, which is what tells a
-publisher's 502 apart from a URL that has been 404ing for weeks.
+fails the run — it costs the counter its input silently — so this array is where it
+shows up; `since` is the first sweep it failed on, which is what tells a publisher's
+502 apart from a URL that has been 404ing for weeks.
+
+The page renders a `/// FEED FAULT` panel under the counter for any source whose
+`since` is more than 24 hours old, so a transient 502 stays out of the public view
+while a genuinely dead feed does not. Every current error reaches the API regardless
+of age.
 
 ## Keyword weights
 
