@@ -41,9 +41,10 @@ studio logs <run-id>
 ```
 
 The first run scores everything the feeds return; later runs only score what the
-dedupe stage has not seen before. When it finds nothing new the scoring group is
-skipped outright (`condition: stages.dedupe.output.new_count > 0`) and the run costs
-zero tokens — which is most runs on an hourly schedule.
+dedupe stage has not seen before, plus any row an earlier sweep inserted but never
+scored. When it finds nothing to score the group is skipped outright
+(`condition: stages.dedupe.output.new_count > 0`) and the run costs zero tokens —
+which is most runs on an hourly schedule.
 
 ## Run the frontend
 
@@ -59,7 +60,7 @@ route can import `bun:sqlite`. Running them under Node will fail at that import.
 | Stage | Executor | What it does |
 |---|---|---|
 | `fetch` (parallel group) | script ×3 | One fetcher per feed — TechCrunch AI, Ars Technica, HN. A feed that errors emits an empty batch with the reason, so one publisher's 502 does not take the sweep down. (A parallel group reports `failed` on any failed stage — `on_failure: collect-all` only keeps the siblings running.) |
-| `dedupe` | script | Drops anything already in SQLite, by URL and by normalized title over the last 100 articles. Caps the run at 25 new articles. |
+| `dedupe` | script | Drops anything already *scored* in SQLite, by URL and by normalized title over the last 100 articles, and carries back any row still unscored from an earlier sweep. Caps the run at 25 articles, the backlog first. |
 | `scoring` (group, 3 iterations) | claude-code + script | `score` applies the weighted keywords; `validate-scores` recomputes every score and checks each claimed keyword literally appears in the article. A keyword that appears literally but names no real risk is dropped on purpose, and the scorer says so in `dropped_keywords` with a reason — an article whose every literal match is left out silently is rejected. A mismatch rejects the group and `score` retries with the issues as feedback. |
 | `aggregate` | script | Persists the scores, recomputes the counter, writes the snapshot. |
 
