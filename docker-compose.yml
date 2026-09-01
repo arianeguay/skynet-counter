@@ -21,8 +21,10 @@ services:
     volumes:
       - skynet-data:/data
       # The provider spawns `claude`, which authenticates from the host session.
-      # Read-write: the CLI refreshes its own token.
-      - ${HOME}/.claude:/root/.claude
+      # Read-write: the CLI refreshes its own token. Both files are needed —
+      # the CLI treats a missing .claude.json as an unconfigured install.
+      - ${HOME}/.claude:/home/bun/.claude
+      - ${HOME}/.claude.json:/home/bun/.claude.json
     restart: unless-stopped
 
 volumes:
