@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { KEYWORD_WEIGHTS, matchedKeywords, scoreFor } from '@/lib/keywords';
+import { KEYWORD_WEIGHTS, matchedKeywords, normalizeText, scoreFor } from '@/lib/keywords';
 
-// Real Ars Technica items from the 2026-09-01 run, which scored 0 across the
-// board because the list only carried agentic-AI vocabulary.
+// Real feed items from the 2026-09-01 run. The Ars Technica three scored 0 back
+// when the list only carried agentic-AI vocabulary; the TechCrunch one scored 0
+// for the mirror-image reason, once the list had only infosec vocabulary left.
 const CORPUS = [
   {
     title: 'Thousands of servers can be backdoored by exploiting buggy motherboard controllers',
@@ -19,6 +20,12 @@ const CORPUS = [
     title: 'Vulnerability giving attackers full control of Macs is under active exploitation',
     summary: 'Screen-sharing bug lets remote hackers log in without a password.',
     expected: ['active exploitation', 'vulnerability'],
+  },
+  {
+    title: 'An Anthropic researcher just gave us a peek at self-improving AI',
+    summary:
+      'Given 10 benchmarks for specific misaligned behaviors, the automated systems were able to improve performance on every single one without degrading overall performance.',
+    expected: ['self-improving', 'misalign'],
   },
 ];
 
@@ -66,4 +73,23 @@ test('the README table lists exactly the weighted keywords', () => {
     })
   );
   expect(listed).toEqual(KEYWORD_WEIGHTS);
+});
+
+// `deceptive` and `reward hacking` are the two additions no feed item in the
+// corpus exercises yet. They are eval-report vocabulary the outlets have started
+// carrying, held to the same literal-match rule as the rest.
+test.each([
+  { text: 'Frontier model shows deceptive alignment under evaluation', expected: ['deceptive'] },
+  { text: 'Agents caught reward hacking their own benchmarks', expected: ['reward hacking'] },
+])('$text matches $expected', ({ text, expected }) => {
+  expect(matchedKeywords(text)).toEqual([...expected]);
+});
+
+// `exploit` was the near-miss that motivated this: "under active exploitation"
+// contains it, so one phrase would have paid out twice.
+test('no keyword is a substring of another', () => {
+  const keys = Object.keys(KEYWORD_WEIGHTS).map(normalizeText);
+  for (const a of keys) {
+    expect(keys.filter((b) => b.includes(a))).toEqual([a]);
+  }
 });
