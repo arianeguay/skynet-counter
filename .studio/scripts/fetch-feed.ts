@@ -1,6 +1,6 @@
-import { parseFeed, readInput, emit, type RawArticle } from './rss.ts';
+import { parseFeed, hydrateSummaries, readInput, emit, USER_AGENT, type RawArticle } from './rss.ts';
 
-const { source, url } = await readInput();
+const { source, url, hydrate } = await readInput();
 if (!source || !url) throw new Error(`Feed item is missing source or url: ${JSON.stringify({ source, url })}`);
 
 // A dead feed emits an empty batch rather than throwing. `on_item_failure:
@@ -12,11 +12,12 @@ let error: string | null = null;
 
 try {
   const res = await fetch(url, {
-    headers: { 'user-agent': 'skynet-counter/0.1 (+https://skynet-counter.com)' },
+    headers: { 'user-agent': USER_AGENT },
     signal: AbortSignal.timeout(20_000),
   });
   if (res.ok) {
     articles = parseFeed(await res.text(), source).slice(0, 40);
+    if (hydrate === 'true') articles = await hydrateSummaries(articles);
   } else {
     error = `${source} responded ${res.status}`;
   }

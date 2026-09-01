@@ -2,6 +2,11 @@
 # exists to carry this list, which the `fetch` map stage fans out over. Adding a
 # feed is two lines here and nothing else — the sub-pipeline reads `source` and
 # `url` off the item.
+#
+# `hydrate: true` is the third line, for a feed that ships no article text: the
+# stage then reads each linked page and scores against that instead of the
+# summary. It costs one request per item, so set it only where the summary is
+# boilerplate.
 run: scheduled
 
 feeds:
@@ -15,3 +20,4 @@ feeds:
     url: https://krebsonsecurity.com/feed/
   - source: Hacker News
     url: https://hnrss.org/newest?q=AI+OR+LLM+OR+agent+OR+exploit&points=80
+    hydrate: true
