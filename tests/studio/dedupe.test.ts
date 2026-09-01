@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const SCRIPT = join(import.meta.dir, 'dedupe.ts');
+const SCRIPT = join(import.meta.dir, '../../.studio/scripts/dedupe.ts');
 
 interface Fetched {
   title: string;

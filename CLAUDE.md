@@ -47,6 +47,14 @@ Script stages declare `runtime: node` but import `bun:sqlite`, so `STUDIO_NODE_B
 point at the bun binary or every one of them dies on that import. The same reason puts
 `bun --bun` in front of every Next.js script in `package.json`.
 
+### Where a test file goes
+
+`src` tests sit next to the code they cover; **script tests live in
+[tests/studio/](tests/studio/), not beside the script**. Bun's test discovery never
+descends into dot-directories, so a `.test.ts` under `.studio/` is skipped in silence —
+`bun test` reports the remaining files green and exits 0. A test placed there does not
+fail, it disappears.
+
 ## The keyword table
 
 [src/lib/keywords.ts](src/lib/keywords.ts) is the source of truth. The matcher flattens
