@@ -6,6 +6,10 @@ DEPLOY_PATH ?= skynet-counter
 
 require-host = @test -n "$(DEPLOY_HOST)" || { echo "DEPLOY_HOST is unset — cp .env.example .env and fill it in"; exit 1; }
 
+pull:
+	$(require-host)
+	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_PATH) && git pull --ff-only'
+
 # Pulling without rebuilding leaves the old image serving, so this is one target.
 deploy:
 	$(require-host)
