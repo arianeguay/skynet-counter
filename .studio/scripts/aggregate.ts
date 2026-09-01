@@ -1,10 +1,6 @@
 import { readContext, emit } from './rss.ts';
 import { openDb, readSnapshot } from '../../src/lib/db.ts';
-
-const BASE = 12;
-const HALF_LIFE_DAYS = 7;
-const DIVISOR = 8;
-const HORIZON_DAYS = 30;
+import { HORIZON_DAYS, decayedSignal, counterFrom } from '../../src/lib/counter.ts';
 
 interface Scored {
   url: string;
@@ -42,13 +38,7 @@ const history = db
   )
   .all(new Date(now - HORIZON_DAYS * 864e5).toISOString());
 
-let signal = 0;
-for (const row of history) {
-  const ageDays = Math.max(0, (now - Date.parse(row.published_at)) / 864e5);
-  signal += row.score * Math.exp(-ageDays / HALF_LIFE_DAYS);
-}
-
-const counter = Math.round(Math.min(100, Math.max(0, BASE + signal / DIVISOR)) * 10) / 10;
+const counter = counterFrom(decayedSignal(history, now));
 
 // A dead feed costs the counter its input without failing the sweep, so the only
 // trace it leaves is this row. `failing_since` is what separates one publisher's

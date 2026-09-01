@@ -121,6 +121,14 @@ filters on `score IS NOT NULL`, and absent from the counter's decayed sum, so it
 the number as well as the log. `counter` is a single row, recomputed from `articles`
 on every run and never asserted by a stage. The frontend only calls `readSnapshot()`.
 
+The formula itself lives in [src/lib/counter.ts](src/lib/counter.ts), not in
+`aggregate.ts`, so [scripts/calibrate.ts](scripts/calibrate.ts) and the tests can reach
+it without running a stage. The decay is `0.5 ** (age / HALF_LIFE_DAYS)` — it used to be
+`Math.exp(-age / HALF_LIFE_DAYS)`, which is an e-folding time that halves at 4.85 days,
+so the constant decayed risk 44% faster than its own name and both docs claimed
+(STU-1211). Changing the constants means editing that file and re-running
+`bun run calibrate` against a real corpus, never guessing.
+
 `feed_health` is one row per source, written by `aggregate` from the `fetch` outputs,
 and it is where a dead feed — or a hydrated feed whose linked pages all fail — becomes
 visible; nothing else in the run reports one, since `fetch-feed.ts` deliberately does not

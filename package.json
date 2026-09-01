@@ -10,7 +10,8 @@
     "start": "bun --bun next start",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "pipeline": "studio run skynet-counter --input-file .studio/inputs/default.input.yaml"
+    "pipeline": "studio run skynet-counter --input-file .studio/inputs/default.input.yaml",
+    "calibrate": "bun scripts/calibrate.ts"
   },
   "dependencies": {
     "next": "^15.5.0",
