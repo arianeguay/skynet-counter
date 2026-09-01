@@ -82,8 +82,10 @@ export function CounterHero({
 
       <section ref={hero} className="vignette flex flex-col items-center gap-6 border border-hairline bg-panel/40 px-6 py-14">
         <p className="text-xs tracking-[0.4em] text-ash">SKYNET COUNTER</p>
-        <p className={`text-sm tracking-[0.25em] text-blood ${glitching ? 'glitch' : ''}`}>
-          How close are we to The Singularity?
+        <p className="text-sm tracking-[0.25em] text-blood">
+          How close are we to{' '}
+          {/* inline-block: a bare inline span ignores the animation's transform. */}
+          <span className={`inline-block ${glitching ? 'glitch' : ''}`}>The Singularity</span>?
         </p>
         <Gauge value={counter} />
         <GlitchNumber value={counter} glitching={glitching} />
