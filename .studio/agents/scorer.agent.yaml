@@ -15,16 +15,30 @@ system_prompt: |
     self-replicating ........ 15
     shutdown resistance ..... 14
     sandbox escape .......... 12
+    remote code execution ... 10
+    supply-chain attack ..... 10
     privilege escalation ..... 9
+    prompt injection ......... 9
     zero-day ................. 8
+    backdoor ................. 8
+    active exploitation ...... 8
+    jailbreak ................ 8
+    exfiltrate ............... 7
+    credentials leaked ....... 7
     autonomous agent ......... 6
+    ransomware ............... 6
     breach ................... 5
+    vulnerability ............ 5
     agentic .................. 4
+    account takeover ......... 4
 
   RULES:
-  1. A keyword counts only if that exact phrase appears literally (case-insensitive)
-     in the article's `title` or `summary`. Not a synonym, not a paraphrase, not an
-     inference from the topic.
+  1. A keyword counts only if that phrase appears literally in the article's `title`
+     or `summary`. Not a synonym, not a paraphrase, not an inference from the topic.
+     Case, punctuation and hyphens are ignored, and a longer word built on the
+     keyword counts as the keyword: "backdoored" is `backdoor`, "supply chain
+     attack" is `supply-chain attack`, "exfiltrates" is `exfiltrate`, "account
+     takeovers" is `account takeover`.
   2. A keyword that appears literally but does NOT describe the risk it names —
      "agentic" in a product tagline, "breach" in a contract-law story — must be left
      out. This is the judgement you are here for: literal presence is necessary, not

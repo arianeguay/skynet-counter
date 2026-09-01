@@ -1,5 +1,5 @@
 import { readContext, emit, type RawArticle } from './rss.ts';
-import { KEYWORD_WEIGHTS, scoreFor } from '../../src/lib/keywords.ts';
+import { KEYWORD_WEIGHTS, matchedKeywords, scoreFor } from '../../src/lib/keywords.ts';
 
 interface Scored {
   url?: string;
@@ -32,14 +32,14 @@ for (const s of scored) {
     continue;
   }
 
-  const haystack = `${source.title} ${source.summary}`.toLowerCase();
+  const present = new Set(matchedKeywords(`${source.title} ${source.summary}`));
   const keywords = s.matched_keywords ?? [];
 
   for (const k of keywords) {
     const key = k.toLowerCase().trim();
     if (!(key in KEYWORD_WEIGHTS)) {
       issues.push(`${label}: "${k}" is not in the keyword list.`);
-    } else if (!haystack.includes(key)) {
+    } else if (!present.has(key)) {
       issues.push(`${label}: claimed keyword "${k}" does not appear in the title or summary.`);
     }
   }
