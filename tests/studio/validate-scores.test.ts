@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 
-const SCRIPT = join(import.meta.dir, 'validate-scores.ts');
+const SCRIPT = join(import.meta.dir, '../../.studio/scripts/validate-scores.ts');
 
 const ARTICLES = [
   {

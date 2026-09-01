@@ -9,7 +9,7 @@
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "typecheck": "tsc --noEmit",
-    "test": "bun test ./src ./.studio",
+    "test": "bun test",
     "pipeline": "studio run skynet-counter --input-file .studio/inputs/default.input.yaml"
   },
   "dependencies": {
