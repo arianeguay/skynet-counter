@@ -6,3 +6,4 @@ data/*.db-*
 .studio/runs/
 *.tsbuildinfo
 next-env.d.ts
+.env*
