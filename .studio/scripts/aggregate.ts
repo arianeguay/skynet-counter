@@ -62,12 +62,17 @@ const health = db.prepare(
                           ELSE COALESCE(feed_health.failing_since, excluded.failing_since) END,
      checked_at = excluded.checked_at`
 );
+// A feed deleted from the input list is never fetched again, so its last row
+// would keep naming it in `feedErrors` with a `failing_since` that grows forever
+// — deleting a feed while it fails is the likely reason to delete it.
+const forget = db.prepare('DELETE FROM feed_health WHERE source NOT IN (SELECT value FROM json_each(?))');
 db.transaction(() => {
   for (const f of feeds) {
     if (!f.source) continue;
     const error = f.error ?? null;
     health.run(f.source, error, error ? scoredAt : null, scoredAt);
   }
+  forget.run(JSON.stringify(feeds.map((f) => f.source).filter(Boolean)));
 })();
 
 db.query('INSERT INTO counter (id, value, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
