@@ -37,7 +37,7 @@ async function runDedupe(dbPath: string, articles: Fetched[] = [ARTICLE]) {
     new_count: number;
     seen_count: number;
     stranded_count: number;
-    articles: Fetched[];
+    articles: (Fetched & { candidate_keywords: string[] })[];
   };
 }
 
@@ -113,7 +113,9 @@ test(
 
     expect(out.stranded_count).toBe(1);
     expect(out.new_count).toBe(1);
-    expect(out.articles).toEqual([ARTICLE]);
+    expect(out.articles).toEqual([
+      { ...ARTICLE, candidate_keywords: ['active exploitation', 'vulnerability'] },
+    ]);
   })
 );
 
@@ -176,5 +178,43 @@ test(
 
     expect(out.new_count).toBe(25);
     expect(out.articles[0]?.title).toBe('TechCrunch AI story 0');
+  })
+);
+
+// The scorer no longer reads the article looking for keywords — it is handed the
+// literal matches and decides which of them describe the article's risk (STU-1212).
+test(
+  'every article carries the literal keyword matches the validator will recompute',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [
+      ARTICLE,
+      {
+        ...ARTICLE,
+        title: 'An AI model quietly rewrote its own weights',
+        url: 'https://example.com/self-improving',
+        summary: 'Researchers describe a self-improving system that resisted a shutdown.',
+      },
+    ]);
+
+    expect(out.articles.map((a) => a.candidate_keywords)).toEqual([
+      ['active exploitation', 'vulnerability'],
+      ['self-improving'],
+    ]);
+  })
+);
+
+test(
+  'an article with no literal match carries an empty candidate list',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [
+      {
+        ...ARTICLE,
+        title: 'A chatbot wrote a sonnet about lawn care',
+        url: 'https://example.com/sonnet',
+        summary: 'No risk vocabulary anywhere in this one.',
+      },
+    ]);
+
+    expect(out.articles[0]?.candidate_keywords).toEqual([]);
   })
 );

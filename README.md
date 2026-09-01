@@ -60,12 +60,14 @@ route can import `bun:sqlite`. Running them under Node will fail at that import.
 | Stage | Executor | What it does |
 |---|---|---|
 | `fetch` (map over `input.feeds`) | script ×5 | One `fetch-feed` sub-pipeline run per feed — Ars Technica Security, Ars Technica AI, The Hacker News, Krebs on Security, HN. The list lives in `.studio/inputs/default.input.yaml`, so adding a feed is two lines there. The stage reads each linked page and scores against that rather than the RSS summary, because every one of the five feeds was measured as scoring better that way. A feed that errors emits an empty batch with the reason, so one publisher's 502 does not take the sweep down. |
-| `dedupe` | script | Drops anything already *scored* in SQLite, by URL and by normalized title over the last 100 articles, and carries back any row still unscored from an earlier sweep. Caps the run at 25 articles, the backlog first; what the backlog leaves is shared round-robin across the sources that returned any, so a busy feed cannot crowd out a quiet one. |
-| `scoring` (group, 3 iterations) | claude-code + script | `score` applies the weighted keywords; `validate-scores` recomputes every score and checks each claimed keyword literally appears in the article. A keyword that appears literally but names no real risk is dropped on purpose, and the scorer says so in `dropped_keywords` with a reason — an article whose every literal match is left out silently is rejected. A mismatch rejects the group and `score` retries with the issues as feedback. |
+| `dedupe` | script | Drops anything already *scored* in SQLite, by URL and by normalized title over the last 100 articles, and carries back any row still unscored from an earlier sweep. Caps the run at 25 articles, the backlog first; what the backlog leaves is shared round-robin across the sources that returned any, so a busy feed cannot crowd out a quiet one. Attaches each surviving article's `candidate_keywords` — the literal matches the scorer chooses from. |
+| `scoring` (group, 3 iterations) | claude-code + script | `score` keeps or drops each of the article's `candidate_keywords` and sums the weights of the ones it kept; `validate-scores` recomputes every score and checks each claimed keyword literally appears in the article. A keyword that appears literally but names no real risk is dropped on purpose, and the scorer says so in `dropped_keywords` with a reason — an article whose every literal match is left out silently is rejected. A mismatch rejects the group and `score` retries with the issues as feedback. |
 | `aggregate` | script | Persists the scores, recomputes the counter, writes the snapshot. |
 
 **Anti-theatre:** the validator is a script, not a second model. It cannot be talked
-into approving a score, and a keyword the scorer invented fails on a substring check.
+into approving a score, and a keyword the scorer invented fails on a substring check
+— it recomputes the matches from `keywords.ts` and never reads the candidate list
+`dedupe` handed the scorer.
 
 **The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / 8`, clamped to 0–100, over the
 last 30 days. The 7-day half-life is what makes radio silence walk the number back

@@ -10,6 +10,11 @@ system_prompt: |
   one of them, exactly once. Ignore the `fetch-*` stage outputs — they are the raw
   feeds the dedupe stage already filtered.
 
+  Each article carries `candidate_keywords`: every keyword that appears literally
+  in its title or summary, found by the same matcher the validator uses. The search
+  is done. Your job is to decide, for each candidate, whether it describes the risk
+  it names.
+
   KEYWORD WEIGHTS (the only keywords that exist):
     loss of control ......... 15
     self-replicating ........ 15
@@ -37,35 +42,34 @@ system_prompt: |
     account takeover ......... 4
 
   RULES:
-  1. A keyword counts only if that phrase appears literally in the article's `title`
-     or `summary`. Not a synonym, not a paraphrase, not an inference from the topic.
-     Case, punctuation and hyphens are ignored, and a longer word built on the
-     keyword counts as the keyword: "backdoored" is `backdoor`, "supply chain
-     attack" is `supply-chain attack`, "exfiltrates" is `exfiltrate`, "account
-     takeovers" is `account takeover`, "misalignment" and "misaligned" are both
-     `misalign`.
-  2. A keyword that appears literally but does NOT describe the risk it names —
-     "agentic" in a product tagline, "breach" in a contract-law story, "deceptive"
-     in a story about advertising practices — must be left out of
-     `matched_keywords`. This is the judgement you are here for: literal
-     presence is necessary, not sufficient. Record every such keyword in
-     `dropped_keywords` as `{"keyword": "breach", "reason": "..."}`, one line saying
-     why the match does not describe the risk. The validator re-reads the article
-     and sees the keyword too: a drop you declare is your judgement, a drop you make
-     silently is indistinguishable from a keyword you missed, and it is rejected.
+  1. An article's `candidate_keywords` is the complete list of keywords literally
+     present in it, and the only source of keywords you may use. Never name one that
+     is not on that article's list — not a synonym, not a paraphrase, not an
+     inference from the topic, however plainly the story is about it. Do not search
+     the text for keywords the list does not carry; a keyword you find that way is
+     one the matcher says is not there, and the validator rejects it.
+  2. A candidate that does NOT describe the risk it names — "agentic" in a product
+     tagline, "breach" in a contract-law story, "deceptive" in a story about
+     advertising practices — must be left out of `matched_keywords`. This is the
+     judgement you are here for: literal presence is necessary, not sufficient.
+     Record every such keyword in `dropped_keywords` as
+     `{"keyword": "breach", "reason": "..."}`, one line saying why the match does
+     not describe the risk. The validator sees the same candidates you do: a drop
+     you declare is your judgement, a drop you make silently is indistinguishable
+     from a keyword you missed, and it is rejected.
   3. `score` is the sum of the weights of the keywords you kept, capped at 100.
      Compute it. Do not estimate it.
-  4. `matched_keywords` holds the kept keywords and `dropped_keywords` the ones you
-     saw and left out under rule 2 — both spelled exactly as listed above, and no
-     keyword in both. Omit `dropped_keywords`, or send it empty, when the article
-     carries no literal match you left out.
+  4. Every candidate goes in exactly one place: `matched_keywords` if you kept it,
+     `dropped_keywords` if you dropped it under rule 2. None in both, none in
+     neither, spelled exactly as `candidate_keywords` spells it. Omit
+     `dropped_keywords`, or send it empty, when you kept every candidate.
   5. `evidence` quotes the sentence fragment from the title or summary that carries
      the match. Required whenever the score is above zero.
-  6. An article that matches nothing scores 0, with an empty `matched_keywords` and
-     an empty `evidence`. That is a correct answer, not a failure — most articles
-     score 0. An article whose every literal match you dropped under rule 2 also
-     scores 0, and is equally correct — but only if each of those keywords is in
-     `dropped_keywords` with its reason. A 0 that leaves a literal match
+  6. An article with an empty `candidate_keywords` scores 0, with an empty
+     `matched_keywords` and an empty `evidence`. That is a correct answer, not a
+     failure — most articles score 0. An article whose every candidate you dropped
+     under rule 2 also scores 0, and is equally correct — but only if each of those
+     keywords is in `dropped_keywords` with its reason. A 0 that leaves a candidate
      unaccounted for is what a broken scorer looks like, and is rejected.
 
   If `group_feedback` is present, a previous attempt was rejected. Read every issue

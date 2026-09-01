@@ -1,5 +1,6 @@
 import { readContext, emit, type RawArticle } from './rss.ts';
 import { openDb } from '../../src/lib/db.ts';
+import { matchedKeywords } from '../../src/lib/keywords.ts';
 
 const HISTORY_WINDOW = 100;
 const MAX_PER_RUN = 25;
@@ -103,7 +104,18 @@ for (const a of fetched) {
 }
 
 const added = shareBySource(fresh, Math.max(0, MAX_PER_RUN - stranded.length));
-const articles = [...stranded, ...added];
+
+// Finding the literal matches is a substring scan over 4000 characters of hydrated
+// page text per article, and the scorer used to be asked to do it from reading —
+// then the validator ran the same scan with matchedKeywords() and rejected the
+// batch over what the model had missed, on nearly every sweep (STU-1212). The scan
+// is handed over already done; the judgement the scorer is there for, keep or drop,
+// is not. The validator still recomputes from keywords.ts and never reads this
+// field, so a batch cannot be approved by trusting it.
+const articles = [...stranded, ...added].map((a) => ({
+  ...a,
+  candidate_keywords: matchedKeywords(`${a.title} ${a.summary}`),
+}));
 
 db.transaction(() => {
   for (const a of added) insert.run(a.url, a.title, a.source, a.publishedAt, a.summary);
