@@ -12,7 +12,7 @@ is the whole flow.
 
 | Step | Executor | Where it lives |
 |---|---|---|
-| `fetch` (parallel group ×3) | script | [.studio/scripts/fetch-feed.ts](.studio/scripts/fetch-feed.ts) |
+| `fetch` (parallel group ×5) | script | [.studio/scripts/fetch-feed.ts](.studio/scripts/fetch-feed.ts) |
 | `dedupe` | script | [.studio/scripts/dedupe.ts](.studio/scripts/dedupe.ts) |
 | `scoring` (group, 3 iterations) | agent + script | [.studio/agents/scorer.agent.yaml](.studio/agents/scorer.agent.yaml), [.studio/scripts/validate-scores.ts](.studio/scripts/validate-scores.ts) |
 | `aggregate` | script | [.studio/scripts/aggregate.ts](.studio/scripts/aggregate.ts) |
@@ -112,7 +112,7 @@ proof, not the edit.
 
 - **the `claude` CLI session.** The `claude-code` provider spawns the CLI and rides
   whatever login it has. There is no API key, so there is nothing to hand a sandbox.
-- **live reads of the three feeds.** A fixture proves the parser; it never proves what
+- **live reads of the five feeds.** A fixture proves the parser; it never proves what
   the publishers are actually emitting today.
 - **accumulated history in `data/skynet.db`.** Anything that depends on weeks of scored
   articles — counter calibration, decay behaviour — cannot be shown against an empty
