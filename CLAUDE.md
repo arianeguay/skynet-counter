@@ -38,8 +38,16 @@ Add two lines to `feeds:` in
 It used to live in two — five near-identical stages whose names had to match a table in
 `fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
 
+A third line, `hydrate: true`, is for a feed that ships no article text — hnrss puts only
+"Article URL / Comments URL / Points" in every `<description>`, so matching title-and-summary
+matches the title alone and the feed scores a structural zero (STU-1192). The stage then
+reads each linked page and scores that text instead, at one request per item. It is a
+per-feed flag and not a thin-summary heuristic because Ars Technica's summaries run 9-15
+words, the same range as HN's boilerplate — no threshold separates them.
+
 A fetch run never throws on a dead feed; it emits an empty batch with the reason instead,
-and `on_item_failure: collect-all` keeps the other feeds' runs going.
+and `on_item_failure: collect-all` keeps the other feeds' runs going. Hydration follows the
+same rule: a linked page that does not answer, or is not HTML, keeps the feed's own summary.
 
 A map child does **not** receive its input as an object. The engine YAML-dumps the item
 into `additional_context`, so `fetch-feed.ts` reads it back through `readInput()` in
