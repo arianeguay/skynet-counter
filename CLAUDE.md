@@ -48,6 +48,9 @@ words, the same range as HN's boilerplate — no threshold separates them.
 A fetch run never throws on a dead feed; it emits an empty batch with the reason instead,
 and `on_item_failure: collect-all` keeps the other feeds' runs going. Hydration follows the
 same rule: a linked page that does not answer, or is not HTML, keeps the feed's own summary.
+Falling back is counted, not swallowed — `hydration_failures` rides out on the fetch output,
+a partial loss goes to stderr, and losing every page becomes the feed's `error`, because a
+batch scored on boilerplate is the structural zero hydration exists to remove.
 
 A map child does **not** receive its input as an object. The engine YAML-dumps the item
 into `additional_context`, so `fetch-feed.ts` reads it back through `readInput()` in
@@ -116,8 +119,9 @@ the number as well as the log. `counter` is a single row, recomputed from `artic
 on every run and never asserted by a stage. The frontend only calls `readSnapshot()`.
 
 `feed_health` is one row per source, written by `aggregate` from the `fetch` outputs,
-and it is where a dead feed becomes visible — nothing else in the run reports one, since
-`fetch-feed.ts` deliberately does not throw. It is a table rather than a column on
+and it is where a dead feed — or a hydrated feed whose linked pages all fail — becomes
+visible; nothing else in the run reports one, since `fetch-feed.ts` deliberately does not
+throw. It is a table rather than a column on
 `counter` because `openDb()` has no migrations: `CREATE TABLE IF NOT EXISTS` reaches an
 existing database, `ADD COLUMN` would have needed a hand-run `ALTER` on the live volume.
 Add state here the same way — a new table, never a column on an old one.

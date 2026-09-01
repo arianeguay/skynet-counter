@@ -64,6 +64,11 @@ export function parseFeed(xml: string, source: string): RawArticle[] {
   return articles;
 }
 
+export interface Hydration {
+  articles: RawArticle[];
+  failed: number;
+}
+
 export const USER_AGENT = 'skynet-counter/0.1 (+https://skynet-counter.com)';
 
 // Chrome carries no article text but plenty of keywords — a "Vulnerabilities"
@@ -87,17 +92,24 @@ async function pageText(url: string): Promise<string> {
 // must not pay the extra request, which is why this is a per-feed flag and not a
 // thin-summary heuristic — Ars Technica's summaries are as short as HN's.
 // Failure keeps the feed's own summary, so a hydrated feed is never worse off.
-export async function hydrateSummaries(articles: RawArticle[]): Promise<RawArticle[]> {
-  return Promise.all(
+// It is worse off than it looks, though: falling back leaves the article scored
+// on boilerplate, which is the structural zero hydration exists to remove — so
+// the fallbacks are counted rather than swallowed.
+export async function hydrateSummaries(articles: RawArticle[]): Promise<Hydration> {
+  const hydrated = await Promise.all(
     articles.map(async (a) => {
       try {
         const text = await pageText(a.url);
-        return text ? { ...a, summary: text } : a;
+        return text ? { ...a, summary: text } : null;
       } catch {
-        return a;
+        return null;
       }
     })
   );
+  return {
+    articles: hydrated.map((a, i) => a ?? articles[i]!),
+    failed: hydrated.filter((a) => a === null).length,
+  };
 }
 
 export async function readContext<T>(): Promise<T> {

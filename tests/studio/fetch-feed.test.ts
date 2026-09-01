@@ -10,7 +10,8 @@ async function runFetch(additional_context: string) {
     stderr: 'pipe',
   });
   const out = await new Response(proc.stdout).text();
-  return { code: await proc.exited, out };
+  const err = await new Response(proc.stderr).text();
+  return { code: await proc.exited, out, err };
 }
 
 const BOILERPLATE = 'Article URL: http://example.com Comments URL: https://news.ycombinator.com/item?id=1';
@@ -18,8 +19,9 @@ const BOILERPLATE = 'Article URL: http://example.com Comments URL: https://news.
 // hnrss's shape: no article text in the description, everything in the link.
 // `post` overrides where that link points, to stand in for a dead page;
 // `postType` overrides what it answers with, to stand in for a link that is
-// not a web page at all.
-function serveFeed(post?: string, postType = 'text/html') {
+// not a web page at all. `secondPost` adds a second item, so a batch can fail
+// its links in part rather than wholesale.
+function serveFeed(post?: string, postType = 'text/html', secondPost?: string) {
   return Bun.serve({
     port: 0,
     fetch(req) {
@@ -33,27 +35,41 @@ function serveFeed(post?: string, postType = 'text/html') {
           { headers: { 'content-type': postType } }
         );
       }
+      const item = (title: string, link: string) =>
+        `<item><title>${title}</title><link>${link}</link>` +
+        `<description>${BOILERPLATE}</description></item>`;
       return new Response(
-        `<rss><channel><item><title>Just the rumour of a bug</title>` +
-          `<link>${post ?? `${url.origin}/post`}</link>` +
-          `<description>${BOILERPLATE}</description></item></channel></rss>`,
+        `<rss><channel>` +
+          item('Just the rumour of a bug', post ?? `${url.origin}/post`) +
+          (secondPost ? item('A second rumour', secondPost) : '') +
+          `</channel></rss>`,
         { headers: { 'content-type': 'application/rss+xml' } }
       );
     },
   });
 }
 
-async function summaryFor(hydrate: boolean, post?: string, postType?: string) {
-  const feed = serveFeed(post, postType);
+interface FetchOutput {
+  error: string | null;
+  hydration_failures: number;
+  articles: { summary: string }[];
+}
+
+async function fetchFrom(hydrate: boolean, post?: string, postType?: string, secondPost?: string) {
+  const feed = serveFeed(post, postType, secondPost);
   try {
-    const { out } = await runFetch(
+    const { out, err } = await runFetch(
       `source: Hacker News\nurl: ${feed.url.origin}/feed\n` + (hydrate ? 'hydrate: true\n' : '')
     );
-    const [first] = (JSON.parse(out) as { articles: { summary: string }[] }).articles;
-    return first?.summary ?? '';
+    return { output: JSON.parse(out) as FetchOutput, err };
   } finally {
     feed.stop(true);
   }
+}
+
+async function summaryFor(hydrate: boolean, post?: string, postType?: string) {
+  const { output } = await fetchFrom(hydrate, post, postType);
+  return output.articles[0]?.summary ?? '';
 }
 
 // The engine YAML-dumps a map item into `additional_context` rather than handing
@@ -91,6 +107,28 @@ test('without the flag a feed pays for no extra request', async () => {
 // its row. Failing back to the feed summary is exactly today's behaviour.
 test('a linked page that does not answer leaves the feed summary in place', async () => {
   expect(await summaryFor(true, 'http://127.0.0.1:1/post')).toBe(BOILERPLATE);
+});
+
+// Falling back is silent by design, and silence here is the failure mode: the
+// batch is scored on boilerplate and the feed still reports a clean fetch.
+test('a hydrated feed whose links all fail reports the same way a dead feed does', async () => {
+  const { output } = await fetchFrom(true, 'http://127.0.0.1:1/post');
+  expect(output.hydration_failures).toBe(1);
+  expect(output.error).toBe('Hacker News loaded 0 of 1 linked pages');
+});
+
+test('a batch that loses only some of its pages reports the count on stderr', async () => {
+  const { output, err } = await fetchFrom(true, undefined, undefined, 'http://127.0.0.1:1/post');
+  expect(output.hydration_failures).toBe(1);
+  expect(output.error).toBeNull();
+  expect(err).toContain('Hacker News loaded 1 of 2 linked pages');
+});
+
+test('a hydrated feed whose pages all load reports no degradation', async () => {
+  const { output, err } = await fetchFrom(true);
+  expect(output.hydration_failures).toBe(0);
+  expect(output.error).toBeNull();
+  expect(err).toBe('');
 });
 
 // HN links PDFs regularly. The body stays the same readable page, so the
