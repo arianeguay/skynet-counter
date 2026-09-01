@@ -127,5 +127,23 @@ is `claude:web` — the fix is a pure script and a `bun test` settles it. STU-11
 (calibrate `BASE`, `HALF_LIFE_DAYS`, `DIVISOR`) is `claude:local` — the constants are
 editable anywhere, but the only proof is a real sweep over real scored history.
 
+### Dependencies in a worktree
+
+Every task runs in its own git worktree, and `node_modules/` is gitignored, so it exists
+only in the checkout where `bun install` ran. In a fresh worktree it is absent, so
+`bun test` dies on `Cannot find module 'bun:test'` and `bun run typecheck` on
+`tsc: not found` — the two commands this section calls the whole proof report a missing
+install, not a broken change. Either fixes it:
+
+```bash
+bun install                                     # install into the worktree, or
+ln -s /path/to/skynet-counter/node_modules .    # borrow the main checkout's
+```
+
+`.gitignore` ignores `node_modules` **without a trailing slash**, so it covers that
+symlink as well as a real directory. Git does not treat a symlink pointing at a directory
+as a directory, so `node_modules/` would match nothing and `git add -A` would stage the
+link — committing one machine's absolute path to `main`. Do not put the slash back.
+
 Host-specific deployment notes for the live site live in the gitignored
 `CLAUDE.local.md`, not here.
