@@ -20,7 +20,7 @@ export function CounterHero({
   updatedAt: string;
   scored: number;
 }) {
-  const sentinel = useRef<HTMLDivElement>(null);
+  const hero = useRef<HTMLElement>(null);
   const [pinned, setPinned] = useState(false);
   const [glitching, setGlitching] = useState(false);
   const stale = Date.parse(updatedAt) === 0;
@@ -44,10 +44,15 @@ export function CounterHero({
   }, []);
 
   useEffect(() => {
-    const node = sentinel.current;
+    const node = hero.current;
     if (!node) return;
-    const observer = new IntersectionObserver(([entry]) => setPinned(!entry?.isIntersecting), {
-      threshold: 0,
+    // The hero itself, not a 1px sentinel below it: a sentinel is out of view
+    // both above and below, so a large scroll jump crosses it without ever
+    // changing intersection state and the callback never fires. The hero sits
+    // at the top of the document, so "not intersecting" can only mean the
+    // scroll is past it.
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry) setPinned(!entry.isIntersecting);
     });
     observer.observe(node);
     return () => observer.disconnect();
@@ -75,7 +80,7 @@ export function CounterHero({
         </div>
       </header>
 
-      <section className="vignette flex flex-col items-center gap-6 border border-hairline bg-panel/40 px-6 py-14">
+      <section ref={hero} className="vignette flex flex-col items-center gap-6 border border-hairline bg-panel/40 px-6 py-14">
         <p className="text-xs tracking-[0.4em] text-ash">SKYNET COUNTER</p>
         <Gauge value={counter} />
         <GlitchNumber value={counter} glitching={glitching} />
@@ -86,7 +91,6 @@ export function CounterHero({
           {scored} ARTICLES SCORED
         </p>
       </section>
-      <div ref={sentinel} aria-hidden />
     </>
   );
 }
