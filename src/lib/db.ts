@@ -24,10 +24,17 @@ export interface Article {
   evidence: string;
 }
 
+export interface FeedError {
+  source: string;
+  error: string;
+  since: string;
+}
+
 export interface CounterSnapshot {
   counter: number;
   updatedAt: string;
   articles: Article[];
+  feedErrors: FeedError[];
 }
 
 export function openDb(): Database {
@@ -50,6 +57,12 @@ export function openDb(): Database {
       id         INTEGER PRIMARY KEY CHECK (id = 1),
       value      REAL NOT NULL,
       updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS feed_health (
+      source        TEXT PRIMARY KEY,
+      error         TEXT,
+      failing_since TEXT,
+      checked_at    TEXT NOT NULL
     );
   `);
   return db;
@@ -78,10 +91,17 @@ export function readSnapshot(limit = 40): CounterSnapshot {
         'SELECT * FROM articles WHERE score IS NOT NULL ORDER BY published_at DESC LIMIT ?'
       )
       .all(limit);
+    const feedErrors = db
+      .query<{ source: string; error: string; failing_since: string }, []>(
+        'SELECT source, error, failing_since FROM feed_health WHERE error IS NOT NULL ORDER BY failing_since'
+      )
+      .all()
+      .map<FeedError>((r) => ({ source: r.source, error: r.error, since: r.failing_since }));
     return {
       counter: counter?.value ?? 0,
       updatedAt: counter?.updated_at ?? new Date(0).toISOString(),
       articles: rows.map(toArticle),
+      feedErrors,
     };
   } finally {
     db.close();
