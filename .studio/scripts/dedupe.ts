@@ -6,6 +6,38 @@ const MAX_PER_RUN = 25;
 
 const normalize = (title: string): string => title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
+const byNewest = (a: RawArticle, b: RawArticle): number =>
+  b.publishedAt.localeCompare(a.publishedAt);
+
+// A burst on one feed must not push another feed out of the batch. A global
+// newest-first slice let TechCrunch AI and Hacker News — which publish far more
+// often than the Ars Technica security feed — fill all 25 slots, so the items
+// that reliably carry scoring vocabulary fell off the bottom and only reached
+// the scorer sweeps later. Each source contributes in turn instead, newest
+// first, until its own supply runs out; the room a quiet feed leaves is still
+// taken by the busy ones, so the cap is filled whenever the pool can fill it.
+function shareBySource(pool: RawArticle[], cap: number): RawArticle[] {
+  const queues = new Map<string, RawArticle[]>();
+  for (const a of pool) {
+    const queue = queues.get(a.source);
+    if (queue) queue.push(a);
+    else queues.set(a.source, [a]);
+  }
+  for (const queue of queues.values()) queue.sort(byNewest);
+
+  const picked: RawArticle[] = [];
+  const rounds = Math.max(0, ...[...queues.values()].map((q) => q.length));
+  for (let round = 0; round < rounds && picked.length < cap; round++) {
+    for (const queue of queues.values()) {
+      const article = queue[round];
+      if (!article) continue;
+      picked.push(article);
+      if (picked.length === cap) break;
+    }
+  }
+  return picked.sort(byNewest);
+}
+
 const ctx = await readContext<{ previous_outputs?: Record<string, { articles?: RawArticle[] }> }>();
 const fetched = Object.values(ctx.previous_outputs ?? {}).flatMap((o) => o.articles ?? []);
 
@@ -66,8 +98,7 @@ for (const a of fetched) {
   fresh.push(a);
 }
 
-fresh.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
-const added = fresh.slice(0, Math.max(0, MAX_PER_RUN - stranded.length));
+const added = shareBySource(fresh, Math.max(0, MAX_PER_RUN - stranded.length));
 const articles = [...stranded, ...added];
 
 db.transaction(() => {
