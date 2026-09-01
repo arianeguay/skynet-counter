@@ -8,7 +8,7 @@
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "typecheck": "tsc --noEmit",
-    "pipeline": "studio run skynet/skynet-counter"
+    "pipeline": "studio run skynet-counter --input-file .studio/inputs/default.input.yaml"
   },
   "dependencies": {
     "next": "^15.5.0",
