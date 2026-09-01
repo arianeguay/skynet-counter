@@ -26,6 +26,15 @@ article — deliberately not a second model, because a script cannot be talked i
 approving a score. A rejection restarts the `scoring` group with the issue list as
 feedback, up to three iterations.
 
+The scorer is handed its keywords rather than asked to find them: `dedupe` attaches
+`candidate_keywords` to every article it emits, from the same `matchedKeywords()`
+scan the validator runs, and the prompt's whole job is to keep or drop each one.
+Making the model do that scan itself — 24 keywords over 4000 characters of hydrated
+page text per article, 25 articles — is what had the group rejecting on its first
+iteration nearly every sweep, at full price each time (STU-1212). The validator does
+not read the field; it recomputes from `keywords.ts`, so handing the list over costs
+nothing in traceability.
+
 The scoring group is skipped when `dedupe` finds nothing new
 (`condition: stages.dedupe.output.new_count > 0`), so most hourly sweeps cost zero
 tokens. Making that group run unconditionally is a cost regression, not a cleanup.
