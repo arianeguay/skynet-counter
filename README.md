@@ -100,9 +100,11 @@ with an auth error.
 
 The Docker path writes the Studio config on every start; here you do it once. It is
 gitignored and holds no secrets — the `claude-code` provider uses the CLI's own session.
+`data/` comes with a clone, but not with a tree that was copied into place.
 
 ```bash
 cp .studio/config.example.yaml .studio/config.yaml
+mkdir -p data
 ```
 
 ```ini
