@@ -67,9 +67,14 @@ route can import `bun:sqlite`. Running them under Node will fail at that import.
 **Anti-theatre:** the validator is a script, not a second model. It cannot be talked
 into approving a score, and a keyword the scorer invented fails on a substring check.
 
-**The counter:** `12 + Σ(score × e^(−age_days / 7)) / 8`, clamped to 0–100, over the
+**The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / 8`, clamped to 0–100, over the
 last 30 days. The 7-day half-life is what makes radio silence walk the number back
 down to the floor on its own — there is no separate decay rule to keep in sync.
+
+`bun run calibrate` replays the stored history through that formula across a grid of
+half-lives and divisors, so the constants can be argued from the corpus rather than
+guessed. It reads the database and never writes to it; point it elsewhere with
+`SKYNET_DB=/path/to.db`.
 
 ## Scheduling
 
