@@ -11,14 +11,23 @@ const TAG = (block: string, name: string): string => {
   return m?.[1] ? decode(m[1]) : '';
 };
 
-function decode(raw: string): string {
+// A malformed feed can carry an out-of-range entity; decoding it would throw
+// RangeError and take the fetch stage down over one bad character.
+function codePoint(n: number, fallback: string): string {
+  return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : fallback;
+}
+
+export function decode(raw: string): string {
   return raw
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (m, hex) => codePoint(parseInt(hex, 16), m))
+    .replace(/&#(\d+);/g, (m, dec) => codePoint(Number(dec), m))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
