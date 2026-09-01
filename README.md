@@ -89,6 +89,13 @@ there is no headless way to authenticate it otherwise. Log in on the host first
 (`claude`), and expect the mount to be the thing that breaks if runs start failing
 with an auth error.
 
+> **That mount is your live Claude session, read-write.** The container can use your
+> account and the CLI refreshes the token in place, so `docker compose up` means
+> trusting this pipeline with it. Read [docker/run-loop.sh](docker/run-loop.sh) and the
+> [pipeline stages](.studio/pipelines/skynet-counter.pipeline.yaml) before running it on
+> an account you care about — or drop the `${HOME}/.claude` volume and run the pipeline
+> on the host with the systemd timer below.
+
 **systemd timer (host-run, no idle container):**
 
 ```ini
