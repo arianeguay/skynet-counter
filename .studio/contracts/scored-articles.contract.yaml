@@ -22,5 +22,19 @@ schema:
             type: array
             items:
               type: string
+          # Keywords literally present that the scorer judged did not describe the
+          # risk they name (rule 2), each as `{keyword, reason}`. Optional: an
+          # article that dropped nothing omits it. Declaring the drop is what lets
+          # the validator tell a judgement call from a scorer that missed the
+          # keyword entirely.
+          # The entry's own shape — a keyword on the list, literally present, not
+          # also kept, with a non-empty reason — is checked in `validate-scores.ts`
+          # and not here. A contract violation is a RALPH retry against a schema
+          # message; a validator issue is group feedback naming the article and the
+          # word, which is what the scorer can actually act on.
+          dropped_keywords:
+            type: array
+            items:
+              type: object
           evidence:
             type: string

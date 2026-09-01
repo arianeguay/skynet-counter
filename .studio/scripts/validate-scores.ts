@@ -1,10 +1,16 @@
 import { readContext, emit, type RawArticle } from './rss.ts';
 import { KEYWORD_WEIGHTS, matchedKeywords, scoreFor } from '../../src/lib/keywords.ts';
 
+interface Dropped {
+  keyword?: string;
+  reason?: string;
+}
+
 interface Scored {
   url?: string;
   score?: number;
   matched_keywords?: string[];
+  dropped_keywords?: Dropped[];
   evidence?: string;
 }
 
@@ -20,6 +26,7 @@ const scored = ctx.previous_outputs?.score?.articles ?? [];
 const byUrl = new Map(candidates.map((a) => [a.url, a]));
 const issues: string[] = [];
 const omissions: string[] = [];
+const declarations: string[] = [];
 
 if (scored.length !== candidates.length) {
   issues.push(`Scored ${scored.length} articles but ${candidates.length} were submitted — score every one, exactly once.`);
@@ -47,18 +54,48 @@ for (const s of scored) {
   }
 
   // Rule 2 lets the scorer drop a literal match that does not describe the risk it
-  // names, so an omission is reported rather than rejected — except a blanket zero,
-  // which is what a silently broken scorer looks like.
+  // names. A drop it declares — keyword plus a one-line reason — is a judgement it
+  // stands behind; a silent one is indistinguishable from a keyword it never saw.
+  const declared = new Set<string>();
+  for (const d of s.dropped_keywords ?? []) {
+    const raw = d?.keyword ?? '';
+    const key = raw.toLowerCase().trim();
+    if (!key) {
+      issues.push(`${label}: a dropped_keywords entry names no keyword.`);
+    } else if (!(key in KEYWORD_WEIGHTS)) {
+      issues.push(`${label}: dropped keyword "${raw}" is not in the keyword list.`);
+    } else if (!present.has(key)) {
+      issues.push(`${label}: dropped keyword "${raw}" does not appear in the title or summary.`);
+    } else if (kept.has(key)) {
+      issues.push(`${label}: "${raw}" is in both matched_keywords and dropped_keywords — keep it or drop it.`);
+    } else if (!d.reason?.trim()) {
+      issues.push(
+        `${label}: dropped keyword "${raw}" with no reason — say in one line why it does not describe the risk it names.`
+      );
+    } else {
+      declared.add(key);
+    }
+  }
+
   const dropped = [...present].filter((k) => !kept.has(k));
-  if (dropped.length > 0) {
-    omissions.push(`${label}: ${dropped.map((k) => `"${k}"`).join(', ')}`);
+  const silent = dropped.filter((k) => !declared.has(k));
+  if (silent.length > 0) {
+    omissions.push(`${label}: ${silent.map((k) => `"${k}"`).join(', ')}`);
+    // A blanket zero is what a silently broken scorer looks like — but only when the
+    // zero is silent. Every literal match accounted for in dropped_keywords is rule 2
+    // working, and rejecting it burns all three iterations over a correct answer.
     if (kept.size === 0) {
       issues.push(
-        `${label}: kept none of the ${dropped.length} keywords literally present (${dropped
+        `${label}: kept none of the ${dropped.length} keywords literally present and left ${silent
           .map((k) => `"${k}"`)
-          .join(', ')}) — keep the ones that describe the article's risk.`
+          .join(', ')} unaccounted for — keep the ones that describe the article's risk, or declare the drop in dropped_keywords with a reason.`
       );
     }
+  }
+  if (declared.size > 0) {
+    declarations.push(
+      `${label}: ${[...declared].map((k) => `"${k}"`).join(', ')}`
+    );
   }
 
   const expected = scoreFor(keywords);
@@ -75,11 +112,16 @@ const verdict =
     ? `${scored.length} scored articles verified: every claimed keyword is literally present and every score matches its weights.`
     : `${issues.length} traceability violations across ${scored.length} scored articles.`;
 
+const notes: string[] = [];
+if (omissions.length > 0) {
+  notes.push(`${omissions.length} articles left a literal keyword unclaimed — ${omissions.join('; ')}.`);
+}
+if (declarations.length > 0) {
+  notes.push(`${declarations.length} articles declared a deliberate drop — ${declarations.join('; ')}.`);
+}
+
 emit({
   status: issues.length === 0 ? 'approved' : 'rejected',
-  summary:
-    omissions.length === 0
-      ? verdict
-      : `${verdict} ${omissions.length} articles left a literal keyword unclaimed — ${omissions.join('; ')}.`,
+  summary: [verdict, ...notes].join(' '),
   issues,
 });

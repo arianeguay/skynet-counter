@@ -4,6 +4,9 @@
   keyword outside the list is an error, never a judgement call.
 - A score must be traceable to a literal keyword match in the article's own title
   or summary. No inference from the topic, the outlet, or the headline's tone.
+- A literal match left out is declared, never silent. Dropping a keyword that does
+  not describe the risk it names is a judgement the scorer is there to make; making
+  it without saying so is indistinguishable from missing the keyword.
 - Most articles score 0. A run where everything scored above zero is a bug in the
   scoring, not a busy news day.
 - The counter is derived, never asserted. It is recomputed from the persisted
