@@ -104,8 +104,19 @@ with an auth error.
 Type=oneshot
 WorkingDirectory=%h/skynet-counter
 Environment=STUDIO_NODE_BIN=%h/.bun/bin/bun
+Environment=PATH=%h/.local/bin:%h/.bun/bin:%h/.local/share/pnpm:/usr/local/bin:/usr/bin:/bin
+TimeoutStartSec=900
 ExecStart=%h/.bun/bin/studio run skynet-counter --input-file .studio/inputs/default.input.yaml
 ```
+
+A user service starts with a minimal environment, so the `PATH` line is not optional:
+the `claude-code` provider spawns the `claude` binary from `~/.local/bin`, and without it
+the scoring stage fails. `TimeoutStartSec` replaces systemd's 90-second default, which a
+scoring stage over a full batch of articles exceeds once RALPH retries.
+
+A sweep that finds no new articles skips scoring and finishes in under a second, so a unit
+missing either line still looks healthy — the failure only shows up once there is
+something to score.
 
 ```ini
 # ~/.config/systemd/user/skynet-counter.timer
@@ -118,8 +129,12 @@ WantedBy=timers.target
 ```
 
 ```bash
+loginctl enable-linger "$USER"
 systemctl --user enable --now skynet-counter.timer
 ```
+
+Lingering is what keeps the user manager alive after logout. Without it the timer stops
+when you log out, which is exactly when an hourly sweep should still be running.
 
 ## API
 
