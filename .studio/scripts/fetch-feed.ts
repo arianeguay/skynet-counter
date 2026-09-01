@@ -1,13 +1,21 @@
 import { parseFeed, readContext, emit, type RawArticle } from './rss.ts';
 
 const FEEDS: Record<string, { source: string; url: string }> = {
-  'fetch-techcrunch': {
-    source: 'TechCrunch AI',
-    url: 'https://techcrunch.com/category/artificial-intelligence/feed/',
+  'fetch-arstechnica-security': {
+    source: 'Ars Technica Security',
+    url: 'https://feeds.arstechnica.com/arstechnica/security',
   },
-  'fetch-arstechnica': {
-    source: 'Ars Technica',
-    url: 'https://feeds.arstechnica.com/arstechnica/technology-lab',
+  'fetch-arstechnica-ai': {
+    source: 'Ars Technica AI',
+    url: 'https://arstechnica.com/ai/feed',
+  },
+  'fetch-thehackernews': {
+    source: 'The Hacker News',
+    url: 'https://thehackernews.com/feeds/posts/default',
+  },
+  'fetch-krebs': {
+    source: 'Krebs on Security',
+    url: 'https://krebsonsecurity.com/feed/',
   },
   'fetch-hn': {
     source: 'Hacker News',
