@@ -141,3 +141,8 @@ validator and the agent prompt. Change them there.
 | shutdown resistance | 14 | | breach | 5 |
 | sandbox escape | 12 | | agentic | 4 |
 | privilege escalation | 9 | | | |
+
+## License
+
+[AGPL-3.0-or-later](LICENSE). Same as [Studio](https://github.com/studio-foundation/studio),
+which this pipeline runs on.
