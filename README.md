@@ -98,6 +98,13 @@ with an auth error.
 
 **systemd timer (host-run, no idle container):**
 
+The Docker path writes the Studio config on every start; here you do it once. It is
+gitignored and holds no secrets — the `claude-code` provider uses the CLI's own session.
+
+```bash
+cp .studio/config.example.yaml .studio/config.yaml
+```
+
 ```ini
 # ~/.config/systemd/user/skynet-counter.service
 [Service]
