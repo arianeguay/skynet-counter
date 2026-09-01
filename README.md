@@ -161,6 +161,14 @@ That pulls `main` on the server and rebuilds both containers over it. It is one 
 on purpose: `web` and `pipeline` build the tree into an image, so a pull without the
 rebuild leaves the old code serving.
 
+```bash
+make run-pipeline
+```
+
+Runs one sweep now rather than waiting out the `pipeline` container's sleep. It runs
+*inside* that container, so it writes the volume the site reads — a sweep started on the
+host would write a `data/skynet.db` nothing serves.
+
 ## API
 
 `GET /api/skynet` — the last snapshot, never a fresh run:
