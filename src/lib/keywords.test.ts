@@ -51,3 +51,19 @@ test('the scorer prompt lists exactly the weighted keywords', () => {
   );
   expect(listed).toEqual(KEYWORD_WEIGHTS);
 });
+
+// The README table is the third copy, and the one that drifted through eleven
+// keywords before anyone noticed.
+test('the README table lists exactly the weighted keywords', () => {
+  const table = readFileSync('README.md', 'utf8').match(/^\| (?!Keyword )(.+) \| (\d+) \| \| (.+) \| (\d+) \|$/gm) ?? [];
+  const listed = Object.fromEntries(
+    table.flatMap((line) => {
+      const [, a, aw, b, bw] = line.match(/^\| (.+) \| (\d+) \| \| (.+) \| (\d+) \|$/)!;
+      return [
+        [a, Number(aw)],
+        [b, Number(bw)],
+      ];
+    })
+  );
+  expect(listed).toEqual(KEYWORD_WEIGHTS);
+});
