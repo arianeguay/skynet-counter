@@ -79,7 +79,9 @@ point at the bun binary or every one of them dies on that import. The same reaso
 ### Where a test file goes
 
 `src` tests sit next to the code they cover; **script tests live in
-[tests/studio/](tests/studio/), not beside the script**. Bun's test discovery never
+[tests/studio/](tests/studio/), not beside the script**. A component test renders with
+`renderToStaticMarkup` from `react-dom/server` and asserts on the markup — there is no
+DOM testing library here, and a presentational server component needs none. Bun's test discovery never
 descends into dot-directories, so a `.test.ts` under `.studio/` is skipped in silence —
 `bun test` reports the remaining files green and exits 0. A test placed there does not
 fail, it disappears.
