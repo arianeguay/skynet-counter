@@ -71,8 +71,15 @@ Changing a keyword or a weight means editing, in this order:
 [src/lib/db.ts](src/lib/db.ts) creates the schema on open; there are no migrations, so a
 column added there reaches fresh databases only and an existing file keeps its old shape.
 
-`articles` is the full history and doubles as the dedupe index — a URL in the table is
-never offered to the scorer again. `counter` is a single row, recomputed from `articles`
+`articles` is the full history and doubles as the dedupe index, but only its *scored*
+rows: a URL with a score is never offered again, and a row left with `score IS NULL` is
+the scorer's backlog. `dedupe` carries that backlog back into its own output ahead of
+the fresh batch, oldest first, and the `MAX_PER_RUN` cap applies to the two together.
+That is what keeps a row from sitting unscored forever once its feed item rolls off the
+publisher's window — re-offering only what `fetch` pulled recovers a missed article for
+a few days and then loses it. A stranded row is invisible to `readSnapshot()`, which
+filters on `score IS NOT NULL`, and absent from the counter's decayed sum, so it costs
+the number as well as the log. `counter` is a single row, recomputed from `articles`
 on every run and never asserted by a stage. The frontend only calls `readSnapshot()`.
 
 The file is gitignored. The history that matters — the one behind the live counter —
