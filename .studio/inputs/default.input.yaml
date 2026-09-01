@@ -1,0 +1,3 @@
+# The pipeline pulls everything it needs from the feeds and from SQLite;
+# the input exists only so `studio run` has something to log.
+run: scheduled

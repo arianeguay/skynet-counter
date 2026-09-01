@@ -1,0 +1,101 @@
+name: skynet-counter
+description: Scrape AI-risk news, score it against weighted keywords, and recompute the 0-100 Skynet counter
+version: 1
+
+stages:
+  - group: fetch
+    mode: parallel
+    max_iterations: 1
+    on_failure: collect-all
+    stages:
+      - name: fetch-techcrunch
+        kind: fetch
+        executor: script
+        script: .studio/scripts/fetch-feed.ts
+        runtime: node
+        timeout_ms: 45000
+        contract: raw-articles
+        ralph:
+          max_attempts: 2
+        context:
+          include:
+            - stage_name
+
+      - name: fetch-arstechnica
+        kind: fetch
+        executor: script
+        script: .studio/scripts/fetch-feed.ts
+        runtime: node
+        timeout_ms: 45000
+        contract: raw-articles
+        ralph:
+          max_attempts: 2
+        context:
+          include:
+            - stage_name
+
+      - name: fetch-hn
+        kind: fetch
+        executor: script
+        script: .studio/scripts/fetch-feed.ts
+        runtime: node
+        timeout_ms: 45000
+        contract: raw-articles
+        ralph:
+          max_attempts: 2
+        context:
+          include:
+            - stage_name
+
+  - name: dedupe
+    kind: filter
+    executor: script
+    script: .studio/scripts/dedupe.ts
+    runtime: node
+    timeout_ms: 30000
+    contract: new-articles
+    ralph:
+      max_attempts: 1
+    context:
+      include:
+        - all_stage_outputs
+
+  - group: scoring
+    max_iterations: 3
+    stages:
+      - name: score
+        kind: scoring
+        agent: scorer
+        contract: scored-articles
+        ralph:
+          max_attempts: 3
+        context:
+          include:
+            - all_stage_outputs
+            - group_feedback
+
+      - name: validate-scores
+        kind: qa
+        executor: script
+        script: .studio/scripts/validate-scores.ts
+        runtime: node
+        timeout_ms: 30000
+        contract: score-validation
+        ralph:
+          max_attempts: 1
+        context:
+          include:
+            - all_stage_outputs
+
+  - name: aggregate
+    kind: aggregation
+    executor: script
+    script: .studio/scripts/aggregate.ts
+    runtime: node
+    timeout_ms: 30000
+    contract: counter-output
+    ralph:
+      max_attempts: 1
+    context:
+      include:
+        - all_stage_outputs

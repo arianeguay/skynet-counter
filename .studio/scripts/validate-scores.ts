@@ -1,0 +1,63 @@
+import { readContext, emit, type RawArticle } from './rss.ts';
+import { KEYWORD_WEIGHTS, scoreFor } from '../../src/lib/keywords.ts';
+
+interface Scored {
+  url?: string;
+  score?: number;
+  matched_keywords?: string[];
+  evidence?: string;
+}
+
+const ctx = await readContext<{
+  previous_outputs?: {
+    dedupe?: { articles?: RawArticle[] };
+    score?: { articles?: Scored[] };
+  };
+}>();
+
+const candidates = ctx.previous_outputs?.dedupe?.articles ?? [];
+const scored = ctx.previous_outputs?.score?.articles ?? [];
+const byUrl = new Map(candidates.map((a) => [a.url, a]));
+const issues: string[] = [];
+
+if (scored.length !== candidates.length) {
+  issues.push(`Scored ${scored.length} articles but ${candidates.length} were submitted — score every one, exactly once.`);
+}
+
+for (const s of scored) {
+  const label = s.url ?? '<missing url>';
+  const source = s.url ? byUrl.get(s.url) : undefined;
+  if (!source) {
+    issues.push(`${label}: not one of the submitted articles.`);
+    continue;
+  }
+
+  const haystack = `${source.title} ${source.summary}`.toLowerCase();
+  const keywords = s.matched_keywords ?? [];
+
+  for (const k of keywords) {
+    const key = k.toLowerCase().trim();
+    if (!(key in KEYWORD_WEIGHTS)) {
+      issues.push(`${label}: "${k}" is not in the keyword list.`);
+    } else if (!haystack.includes(key)) {
+      issues.push(`${label}: claimed keyword "${k}" does not appear in the title or summary.`);
+    }
+  }
+
+  const expected = scoreFor(keywords);
+  if (s.score !== expected) {
+    issues.push(`${label}: score ${s.score} does not match the sum of its matched keyword weights (${expected}).`);
+  }
+  if (keywords.length > 0 && !s.evidence?.trim()) {
+    issues.push(`${label}: scored above zero with no evidence quote.`);
+  }
+}
+
+emit({
+  status: issues.length === 0 ? 'approved' : 'rejected',
+  summary:
+    issues.length === 0
+      ? `${scored.length} scored articles verified: every keyword is literally present and every score matches its weights.`
+      : `${issues.length} traceability violations across ${scored.length} scored articles.`,
+  issues,
+});

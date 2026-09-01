@@ -1,0 +1,26 @@
+name: scored-articles
+version: 1
+schema:
+  required_fields:
+    - articles
+  fields:
+    articles:
+      type: array
+      items:
+        type: object
+        required_fields:
+          - url
+          - score
+          - matched_keywords
+          - evidence
+        fields:
+          url:
+            type: string
+          score:
+            type: number
+          matched_keywords:
+            type: array
+            items:
+              type: string
+          evidence:
+            type: string

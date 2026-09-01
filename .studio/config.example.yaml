@@ -1,0 +1,16 @@
+studio_version: ">=0.17.0"
+
+# bun: script stages declare `runtime: node` but import bun:sqlite, so
+#      STUDIO_NODE_BIN must point at the bun binary. See the README.
+# claude: the claude-code provider spawns the Claude Code CLI — no API key,
+#      it uses whatever session `claude` is already logged in with.
+requires_binaries:
+  - bun
+  - claude
+
+providers:
+  claude-code: {}
+
+defaults:
+  provider: claude-code
+  model: sonnet

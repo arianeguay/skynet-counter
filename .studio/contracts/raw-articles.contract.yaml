@@ -1,0 +1,25 @@
+name: raw-articles
+version: 1
+schema:
+  required_fields:
+    - source
+    - articles
+  fields:
+    source:
+      type: string
+    articles:
+      type: array
+      items:
+        type: object
+        required_fields:
+          - title
+          - url
+          - source
+          - publishedAt
+        fields:
+          title:
+            type: string
+          url:
+            type: string
+          publishedAt:
+            type: string

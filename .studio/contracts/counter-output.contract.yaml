@@ -1,0 +1,22 @@
+name: counter-output
+version: 1
+schema:
+  required_fields:
+    - counter
+    - updatedAt
+    - articles
+  fields:
+    counter:
+      type: number
+    updatedAt:
+      type: string
+    articles:
+      type: array
+      items:
+        type: object
+        required_fields:
+          - title
+          - url
+          - source
+          - date
+          - score
