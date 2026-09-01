@@ -64,6 +64,42 @@ export function parseFeed(xml: string, source: string): RawArticle[] {
   return articles;
 }
 
+export const USER_AGENT = 'skynet-counter/0.1 (+https://skynet-counter.com)';
+
+// Chrome carries no article text but plenty of keywords — a "Vulnerabilities"
+// nav item would score every page on the site.
+const CHROME = /<(script|style|noscript|nav|header|footer|aside|svg)[\s\S]*?<\/\1>/gi;
+const PAGE_TEXT_LIMIT = 4000;
+
+async function pageText(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: { 'user-agent': USER_AGENT },
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!res.ok || !(res.headers.get('content-type') ?? '').includes('html')) return '';
+  return decode((await res.text()).replace(CHROME, ' ')).slice(0, PAGE_TEXT_LIMIT);
+}
+
+// hnrss ships no article text: every `<description>` is the same "Article URL /
+// Comments URL / Points" boilerplate, so matching title-and-summary is matching
+// the title alone and the feed scores a structural zero. Reading the linked page
+// is what gives it text to match against. A feed whose summaries are real prose
+// must not pay the extra request, which is why this is a per-feed flag and not a
+// thin-summary heuristic — Ars Technica's summaries are as short as HN's.
+// Failure keeps the feed's own summary, so a hydrated feed is never worse off.
+export async function hydrateSummaries(articles: RawArticle[]): Promise<RawArticle[]> {
+  return Promise.all(
+    articles.map(async (a) => {
+      try {
+        const text = await pageText(a.url);
+        return text ? { ...a, summary: text } : a;
+      } catch {
+        return a;
+      }
+    })
+  );
+}
+
 export async function readContext<T>(): Promise<T> {
   return JSON.parse(await Bun.stdin.text()) as T;
 }
