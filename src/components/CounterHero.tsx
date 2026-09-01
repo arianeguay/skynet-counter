@@ -26,8 +26,8 @@ export function CounterHero({
   const stale = Date.parse(updatedAt) === 0;
   const status = statusLine(counter);
 
-  // One beat for both copies of the number — two independent timers would read
-  // as two different faults on the same value.
+  // One beat for every glitching element — independent timers would read as
+  // several unrelated faults instead of one.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
@@ -82,7 +82,9 @@ export function CounterHero({
 
       <section ref={hero} className="vignette flex flex-col items-center gap-6 border border-hairline bg-panel/40 px-6 py-14">
         <p className="text-xs tracking-[0.4em] text-ash">SKYNET COUNTER</p>
-        <p className="text-sm tracking-[0.25em] text-blood">How close are we to The Singularity?</p>
+        <p className={`text-sm tracking-[0.25em] text-blood ${glitching ? 'glitch' : ''}`}>
+          How close are we to The Singularity?
+        </p>
         <Gauge value={counter} />
         <GlitchNumber value={counter} glitching={glitching} />
         <p className="text-sm tracking-[0.25em] text-blood">{status}</p>
