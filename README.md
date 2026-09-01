@@ -69,14 +69,22 @@ into approving a score, and a keyword the scorer invented fails on a substring c
 — it recomputes the matches from `keywords.ts` and never reads the candidate list
 `dedupe` handed the scorer.
 
-**The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / 8`, clamped to 0–100, over the
+**The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / 32`, clamped to 0–100, over the
 last 30 days. The 7-day half-life is what makes radio silence walk the number back
 down to the floor on its own — there is no separate decay rule to keep in sync.
 
+The divisor is set so the gauge spans the range the feeds actually produce. Measured
+2026-09-01, the five feeds publish 97 points of score a day between them, which at a
+7-day half-life settles at a signal of ~930: an ordinary week reads 41, a doubled one
+70, a tripled one stops just short of 100, and silence returns to 12.
+
 `bun run calibrate` replays the stored history through that formula across a grid of
 half-lives and divisors, so the constants can be argued from the corpus rather than
-guessed. It reads the database and never writes to it; point it elsewhere with
-`SKYNET_DB=/path/to.db`.
+guessed. It prints two grids: what the stored history publishes today, and what it
+publishes once every day inside the horizon is populated. They differ by roughly 2x
+on a database whose history was assembled from RSS windows, and the second is the one
+the divisor has to suit. It reads the database and never writes to it; point it
+elsewhere with `SKYNET_DB=/path/to.db`.
 
 ## Scheduling
 
