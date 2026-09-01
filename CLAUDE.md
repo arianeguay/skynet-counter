@@ -138,6 +138,15 @@ so the constant decayed risk 44% faster than its own name and both docs claimed
 (STU-1211). Changing the constants means editing that file and re-running
 `bun run calibrate` against a real corpus, never guessing.
 
+Calibrate against the harness's **steady-state** grid, not its stored-corpus grid. A
+database whose history came out of RSS windows is half-empty for weeks — the windows
+run from two days (hnrss) to two months (Krebs), so most days inside the horizon hold
+only the sparse tail of the slow feeds. The stored corpus read 26 on 2026-09-01 where
+the steady state reads 41, and `DIVISOR` picked off the first number is 2x too small.
+The projection measures each feed over its own window and sums them, which is why
+`calibrate` prints a per-feed rate rather than one articles/day for the corpus
+(STU-1171).
+
 `feed_health` is one row per source, written by `aggregate` from the `fetch` outputs,
 and it is where a dead feed — or a hydrated feed whose linked pages all fail — becomes
 visible; nothing else in the run reports one, since `fetch-feed.ts` deliberately does not
