@@ -123,6 +123,12 @@ if (unread.length) {
   process.stderr.write(`dedupe loaded ${hydrated.length} of ${added.length} linked pages\n`);
 }
 
+// Attributed per feed, not counted per run: `aggregate` files it next to that
+// feed's fetch outcome, so a publisher steadily refusing the user-agent reads as
+// that publisher's problem rather than as a number that moves (STU-1205).
+const pagesUnread: Record<string, number> = {};
+for (const a of unread) pagesUnread[a.source] = (pagesUnread[a.source] ?? 0) + 1;
+
 // Finding the literal matches is a substring scan over 4000 characters of hydrated
 // page text per article, and the scorer used to be asked to do it from reading —
 // then the validator ran the same scan with matchedKeywords() and rejected the
@@ -146,6 +152,6 @@ emit({
   new_count: articles.length,
   seen_count: fetched.length,
   stranded_count: stranded.length,
-  hydration_failures: unread.length,
+  pages_unread: pagesUnread,
   articles,
 });

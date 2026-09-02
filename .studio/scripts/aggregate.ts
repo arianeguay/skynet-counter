@@ -1,5 +1,5 @@
 import { readContext, emit } from './rss.ts';
-import { openDb, readSnapshot } from '../../src/lib/db.ts';
+import { openDb, readSnapshot, SWEEP_RETENTION_DAYS } from '../../src/lib/db.ts';
 import { HORIZON_DAYS, normalizedSignal, counterFrom } from '../../src/lib/counter.ts';
 
 interface Scored {
@@ -12,11 +12,13 @@ interface Scored {
 const ctx = await readContext<{
   previous_outputs?: {
     fetch?: { outputs?: { source?: string; error?: string | null }[] };
+    dedupe?: { pages_unread?: Record<string, number> };
     score?: { articles?: Scored[] };
   };
 }>();
 const scored = ctx.previous_outputs?.score?.articles ?? [];
 const feeds = ctx.previous_outputs?.fetch?.outputs ?? [];
+const pagesUnread = ctx.previous_outputs?.dedupe?.pages_unread ?? {};
 const now = Date.now();
 const scoredAt = new Date(now).toISOString();
 
@@ -42,28 +44,24 @@ const history = db
 
 const counter = counterFrom(normalizedSignal(history, now));
 
-// A dead feed costs the counter its input without failing the sweep, so the only
-// trace it leaves is this row. `failing_since` is what separates one publisher's
-// 502 from a URL that has been 404ing for a fortnight — COALESCE keeps the first
-// failure's timestamp until a run actually succeeds and clears it.
-const health = db.prepare(
-  `INSERT INTO feed_health (source, error, failing_since, checked_at) VALUES (?, ?, ?, ?)
-   ON CONFLICT(source) DO UPDATE SET
-     error = excluded.error,
-     failing_since = CASE WHEN excluded.error IS NULL THEN NULL
-                          ELSE COALESCE(feed_health.failing_since, excluded.failing_since) END,
-     checked_at = excluded.checked_at`
+// A dead feed costs the counter its input without failing the sweep, so this row
+// is the only trace it leaves. One row per source per sweep rather than one row
+// per source: a feed that fails 23 hours out of 24 never holds a day-old failure,
+// so its record is the only thing that shows it (STU-1207).
+const sweep = db.prepare(
+  'INSERT OR REPLACE INTO feed_sweeps (source, swept_at, error, pages_unread) VALUES (?, ?, ?, ?)'
 );
-// A feed deleted from the input list is never fetched again, so its last row
-// would keep naming it in `feedErrors` with a `failing_since` that grows forever
-// — deleting a feed while it fails is the likely reason to delete it.
-const forget = db.prepare('DELETE FROM feed_health WHERE source NOT IN (SELECT value FROM json_each(?))');
+const prune = db.prepare('DELETE FROM feed_sweeps WHERE swept_at < ?');
+// A feed deleted from the input list is never fetched again, so its rows would
+// keep naming it in `feedErrors` forever — and deleting a feed while it fails is
+// the likely reason to delete it.
+const forget = db.prepare('DELETE FROM feed_sweeps WHERE source NOT IN (SELECT value FROM json_each(?))');
 db.transaction(() => {
   for (const f of feeds) {
     if (!f.source) continue;
-    const error = f.error ?? null;
-    health.run(f.source, error, error ? scoredAt : null, scoredAt);
+    sweep.run(f.source, scoredAt, f.error ?? null, pagesUnread[f.source] ?? 0);
   }
+  prune.run(new Date(now - SWEEP_RETENTION_DAYS * 864e5).toISOString());
   forget.run(JSON.stringify(feeds.map((f) => f.source).filter(Boolean)));
 })();
 

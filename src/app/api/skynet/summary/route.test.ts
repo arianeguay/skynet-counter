@@ -3,8 +3,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// `DB_PATH` reads the environment once, when `db.ts` is first imported, so the
-// temp file has to be named before either module is pulled in.
 const dir = mkdtempSync(join(tmpdir(), 'skynet-summary-'));
 process.env.SKYNET_DB = join(dir, 'skynet.db');
 
