@@ -6,8 +6,10 @@ import {
   HORIZON_DAYS,
   counterFrom,
   decayedSignal,
+  normalizedSignal,
   statusLine,
   steadySignal,
+  type Sourced,
 } from '@/lib/counter';
 
 const NOW = Date.parse('2026-09-01T00:00:00.000Z');
@@ -77,6 +79,53 @@ test('the calibrated divisor keeps silence, an ordinary week and a crisis on the
   expect(counterFrom(steady)).toBeGreaterThan(35);
   expect(counterFrom(steady)).toBeLessThan(55);
   expect(counterFrom(3 * steady)).toBeLessThan(100);
+});
+
+// `days` of history at MEASURED_DAILY_SCORE points a day, arriving hourly and
+// split across two sources. The oldest row lands exactly `days` back, so the
+// observation window the normalisation reads is the depth being tested.
+const corpusOf = (days: number, dailyScore = MEASURED_DAILY_SCORE): Sourced[] => {
+  const rows: Sourced[] = [];
+  const perArticle = dailyScore / 24 / 2;
+  for (let hour = 0; hour < days * 24; hour++) {
+    for (const source of ['fast feed', 'slow feed']) {
+      rows.push({ score: perArticle, source, published_at: new Date(NOW - (hour + 1) * 36e5).toISOString() });
+    }
+  }
+  return rows;
+};
+
+const counterOf = (rows: Sourced[]) => counterFrom(normalizedSignal(rows, NOW));
+
+// The bug: the raw sum reads "how many days of history do we hold", not "how
+// much risk is there". A database seeded yesterday published 26 against a
+// steady state of 41 for the three weeks it took to fill (STU-1222).
+test('a young corpus and a full one read the same on the same daily rate', () => {
+  const [day, week, full] = [counterOf(corpusOf(1)), counterOf(corpusOf(7)), counterOf(corpusOf(30))];
+  expect(Math.abs(day - full)).toBeLessThan(1);
+  expect(Math.abs(week - full)).toBeLessThan(1);
+});
+
+// The regression this replaces, kept as the contrast: on the raw sum the same
+// two depths are more than ten points apart on the gauge, all of it history.
+test('the raw sum is what made corpus depth look like risk', () => {
+  const raw = (days: number) => counterFrom(decayedSignal(corpusOf(days), NOW));
+  expect(raw(30) - raw(1)).toBeGreaterThan(10);
+});
+
+// Normalisation scales, so it cannot manufacture signal out of silence.
+test('a full horizon of zero-scoring articles still reads BASE', () => {
+  expect(counterOf(corpusOf(30, 0))).toBe(BASE);
+});
+
+// A source seen for one hour is not a rate. Without the floor its window covers
+// almost none of the horizon's weight, and dividing by that scales one article
+// into a crisis.
+test('a source observed for under a day is not extrapolated from its first hour', () => {
+  const oneArticle: Sourced[] = [
+    { score: 45, source: 'brand new feed', published_at: new Date(NOW - 36e5).toISOString() },
+  ];
+  expect(normalizedSignal(oneArticle, NOW)).toBeLessThan(11 * 45);
 });
 
 // A half-life close to the horizon turns HORIZON_DAYS into a second decay
