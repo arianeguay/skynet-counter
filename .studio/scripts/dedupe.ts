@@ -1,5 +1,5 @@
 import { readContext, emit, hydrateSummaries, type RawArticle } from './rss.ts';
-import { openDb } from '../../src/lib/db.ts';
+import { openDb, SWEEP_RETENTION_DAYS, UNREADABLE_AFTER_ATTEMPTS } from '../../src/lib/db.ts';
 import { matchedKeywords } from '../../src/lib/keywords.ts';
 
 const HISTORY_WINDOW = 100;
@@ -115,19 +115,42 @@ const added = shareBySource(fresh, Math.max(0, MAX_PER_RUN - stranded.length));
 // summary. Scoring it there is what made a one-minute outage permanent: the
 // boilerplate scores 0, `aggregate` writes that 0, and the URL joins the
 // `score IS NOT NULL` seen-index for good. Held back it is simply never seen, so
-// the next sweep pulls it from the feed and tries the page again — bounded by
-// the publisher's own window, which is what bounds every other retry here
-// (STU-1204).
-const { articles: hydrated, failed: unread } = await hydrateSummaries(added);
+// the next sweep pulls it from the feed and tries the page again (STU-1204).
+//
+// Retrying forever is the other half of that bargain, and `unread_pages` is what
+// bounds it: a page refused this many sweeps running is not having a bad minute.
+// HN links PDFs regularly, and `pageText` refuses a non-HTML response by design,
+// so without this the same dead link is fetched every hour until its item rolls
+// off — and nothing ever said so (STU-1271).
+const attempts = new Map(
+  db
+    .query<{ url: string; attempts: number }, []>('SELECT url, attempts FROM unread_pages')
+    .all()
+    .map((r) => [r.url, r.attempts] as const)
+);
+const unreadable = added.filter((a) => (attempts.get(a.url) ?? 0) >= UNREADABLE_AFTER_ATTEMPTS);
+const worthTrying = added.filter((a) => (attempts.get(a.url) ?? 0) < UNREADABLE_AFTER_ATTEMPTS);
+
+const { articles: hydrated, failed: unread } = await hydrateSummaries(worthTrying);
 if (unread.length) {
-  process.stderr.write(`dedupe loaded ${hydrated.length} of ${added.length} linked pages\n`);
+  process.stderr.write(`dedupe loaded ${hydrated.length} of ${worthTrying.length} linked pages\n`);
+}
+if (unreadable.length) {
+  process.stderr.write(
+    `dedupe skipped ${unreadable.length} pages refused ${UNREADABLE_AFTER_ATTEMPTS}+ sweeps running\n`
+  );
 }
 
 // Attributed per feed, not counted per run: `aggregate` files it next to that
 // feed's fetch outcome, so a publisher steadily refusing the user-agent reads as
 // that publisher's problem rather than as a number that moves (STU-1205).
-const pagesUnread: Record<string, number> = {};
-for (const a of unread) pagesUnread[a.source] = (pagesUnread[a.source] ?? 0) + 1;
+const countBySource = (articles: RawArticle[]): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  for (const a of articles) counts[a.source] = (counts[a.source] ?? 0) + 1;
+  return counts;
+};
+const pagesUnread = countBySource(unread);
+const pagesUnreadable = countBySource(unreadable);
 
 // Finding the literal matches is a substring scan over 4000 characters of hydrated
 // page text per article, and the scorer used to be asked to do it from reading —
@@ -141,10 +164,26 @@ const articles = [...stranded, ...hydrated].map((a) => ({
   candidate_keywords: matchedKeywords(`${a.title} ${a.summary}`),
 }));
 
+const noteUnread = db.prepare(
+  `INSERT INTO unread_pages (url, source, attempts, first_at, last_at) VALUES (?, ?, 1, ?, ?)
+   ON CONFLICT(url) DO UPDATE SET attempts = unread_pages.attempts + 1, last_at = excluded.last_at`
+);
+const forgetUnread = db.prepare('DELETE FROM unread_pages WHERE url = ?');
+// A page that has not been offered for the whole retention window has rolled off
+// its feed, so its row can never be cleared by a success and would sit forever.
+const pruneUnread = db.prepare('DELETE FROM unread_pages WHERE last_at < ?');
+
 // The hydrated summary is what gets stored, so a row re-offered from the backlog
 // carries its page text and needs no second fetch.
+const now = new Date().toISOString();
 db.transaction(() => {
-  for (const a of hydrated) insert.run(a.url, a.title, a.source, a.publishedAt, a.summary);
+  for (const a of hydrated) {
+    insert.run(a.url, a.title, a.source, a.publishedAt, a.summary);
+    // It answered this time, so the run of refusals ends here.
+    forgetUnread.run(a.url);
+  }
+  for (const a of unread) noteUnread.run(a.url, a.source, now, now);
+  pruneUnread.run(new Date(Date.parse(now) - SWEEP_RETENTION_DAYS * 864e5).toISOString());
 })();
 db.close();
 
@@ -153,5 +192,6 @@ emit({
   seen_count: fetched.length,
   stranded_count: stranded.length,
   pages_unread: pagesUnread,
+  pages_unreadable: pagesUnreadable,
   articles,
 });

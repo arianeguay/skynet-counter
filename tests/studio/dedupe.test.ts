@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { UNREADABLE_AFTER_ATTEMPTS } from '@/lib/db';
 import { afterAll, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,6 +21,7 @@ interface Fetched {
 // back, which makes hydration a no-op for the tests that are not about it.
 let pageRequests = 0;
 let flakyRefusals = 1;
+let recoveringRefusals = 2;
 const pages = Bun.serve({
   port: 0,
   fetch(req) {
@@ -32,6 +34,10 @@ const pages = Bun.serve({
     if (url.pathname === '/pdf') return new Response('%PDF-1.4', { headers: { 'content-type': 'application/pdf' } });
     if (url.pathname === '/flaky') {
       if (flakyRefusals-- > 0) return new Response('gone', { status: 503 });
+      return html('<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p>');
+    }
+    if (url.pathname === '/recovering') {
+      if (recoveringRefusals-- > 0) return new Response('gone', { status: 503 });
       return html('<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p>');
     }
     if (url.pathname === '/chrome') {
@@ -76,6 +82,7 @@ async function runDedupe(dbPath: string, articles: Fetched[] = [ARTICLE]) {
       seen_count: number;
       stranded_count: number;
       pages_unread: Record<string, number>;
+      pages_unreadable: Record<string, number>;
       articles: (Fetched & { candidate_keywords: string[] })[];
     },
     { stderr: err }
@@ -375,5 +382,69 @@ test(
     expect(out.articles.map((a) => a.url)).toEqual([ARTICLE.url]);
     expect(out.pages_unread).toEqual({ arstechnica: 1 });
     expect(out.stderr).toContain('dedupe loaded 1 of 2 linked pages');
+  })
+);
+
+
+// STU-1271: a page that will never load — HN links PDFs constantly — was retried
+// every sweep until its item rolled off, and left no trace of having been lost.
+test(
+  'a page refused several sweeps running is given up on and counted',
+  withDb(async (dbPath) => {
+    const article = linked('/dead');
+    const before = pageRequests;
+
+    for (let i = 0; i < UNREADABLE_AFTER_ATTEMPTS; i++) {
+      const out = await runDedupe(dbPath, [article]);
+      expect(out.pages_unread).toEqual({ arstechnica: 1 });
+      expect(out.pages_unreadable).toEqual({});
+    }
+    expect(pageRequests - before).toBe(UNREADABLE_AFTER_ATTEMPTS);
+
+    const out = await runDedupe(dbPath, [article]);
+    expect(out.pages_unreadable).toEqual({ arstechnica: 1 });
+    expect(out.pages_unread).toEqual({});
+    expect(out.articles).toEqual([]);
+    // The point of giving up: it stops paying for a link it has established is dead.
+    expect(pageRequests - before).toBe(UNREADABLE_AFTER_ATTEMPTS);
+    expect(out.stderr).toContain(`refused ${UNREADABLE_AFTER_ATTEMPTS}+ sweeps running`);
+  })
+);
+
+// The count has to survive the run, or it is the container log again.
+test(
+  'the refusals are recorded per page and readable afterwards',
+  withDb(async (dbPath) => {
+    const article = linked('/dead');
+    await runDedupe(dbPath, [article]);
+    await runDedupe(dbPath, [article]);
+
+    const db = new Database(dbPath);
+    const row = db
+      .query<{ url: string; source: string; attempts: number }, []>(
+        'SELECT url, source, attempts FROM unread_pages'
+      )
+      .get();
+    db.close();
+    expect(row).toEqual({ url: article.url, source: 'arstechnica', attempts: 2 });
+  })
+);
+
+// A transient failure must not accumulate toward being given up on: the run of
+// refusals ends the moment the page answers.
+test(
+  'a page that answers again clears its record of refusals',
+  withDb(async (dbPath) => {
+    const article = linked('/recovering');
+    await runDedupe(dbPath, [article]);
+    await runDedupe(dbPath, [article]);
+    const out = await runDedupe(dbPath, [article]);
+
+    expect(out.articles[0]?.summary).toContain('exploited 87%');
+
+    const db = new Database(dbPath);
+    const rows = db.query<{ url: string }, []>('SELECT url FROM unread_pages').all();
+    db.close();
+    expect(rows).toEqual([]);
   })
 );
