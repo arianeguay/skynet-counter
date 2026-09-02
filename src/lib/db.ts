@@ -62,6 +62,11 @@ export function isFlapping(feed: Pick<FeedError, 'failedSweeps' | 'totalSweeps'>
   return feed.totalSweeps >= FLAP_MIN_SWEEPS && feed.failedSweeps / feed.totalSweeps >= FLAP_RATIO;
 }
 
+// After this many sweeps refusing the same page, it is not a page having a bad
+// minute. `dedupe` stops asking for it, which caps what a permanently dead link
+// costs while its item sits in the publisher's window (STU-1271).
+export const UNREADABLE_AFTER_ATTEMPTS = 3;
+
 export interface CounterSnapshot {
   counter: number;
   updatedAt: string;
@@ -98,6 +103,13 @@ export function openDb(): Database {
       PRIMARY KEY (source, swept_at)
     );
     CREATE INDEX IF NOT EXISTS feed_sweeps_swept_at ON feed_sweeps(swept_at DESC);
+    CREATE TABLE IF NOT EXISTS unread_pages (
+      url      TEXT PRIMARY KEY,
+      source   TEXT NOT NULL,
+      attempts INTEGER NOT NULL,
+      first_at TEXT NOT NULL,
+      last_at  TEXT NOT NULL
+    );
   `);
   // `feed_health` held one row per source with the current error and the start of
   // the failure run. Every fact in it is the newest `feed_sweeps` row for that

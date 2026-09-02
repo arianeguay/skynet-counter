@@ -68,9 +68,18 @@ Hydration fails differently. A linked page that does not answer, or is not HTML,
 its article back** rather than letting it through on the feed summary — that summary is
 hnrss boilerplate, so scoring it writes a 0, and the URL then joins the `score IS NOT NULL`
 seen-index for good. A one-minute outage cost an article its score permanently (STU-1204).
-Held back means never inserted, so nothing has to remember it: the next sweep pulls the
-same item off the feed and tries the page again, bounded by the publisher's own window.
-`hydration_failures` rides out on dedupe's output and a partial loss goes to stderr.
+Held back means never inserted, so the next sweep pulls the same item off the feed and
+tries the page again.
+
+`unread_pages` is what stops that retry being forever. It counts refusals per URL, and
+after `UNREADABLE_AFTER_ATTEMPTS` `dedupe` stops asking — HN links PDFs constantly and
+`pageText` refuses a non-HTML response by design, so the same dead link was being fetched
+every hour until its item rolled off, with nothing recording that the article was lost
+(STU-1271). A page that answers again clears its row, so a transient failure never
+accumulates toward being given up on.
+
+`dedupe` emits both counts per feed — `pages_unread` for what it tried and lost,
+`pages_unreadable` for what it has stopped trying — and writes a line to stderr for each.
 
 A map child does **not** receive its input as an object. The engine YAML-dumps the item
 into `additional_context`, so `fetch-feed.ts` reads it back through `readInput()` in
