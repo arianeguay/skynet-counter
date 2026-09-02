@@ -2,7 +2,7 @@
 // HALF_LIFE_DAYS and DIVISOR can be chosen from measured data instead of a live
 // sweep per question. Read-only: it never scores, never writes (STU-1171).
 import { Database } from 'bun:sqlite';
-import { BASE, DIVISOR, HALF_LIFE_DAYS, HORIZON_DAYS, counterFrom, decayedSignal, steadySignal } from '@/lib/counter';
+import { BASE, DIVISOR, HALF_LIFE_DAYS, HORIZON_DAYS, counterFrom, decayedSignal, normalizedSignal, steadySignal } from '@/lib/counter';
 
 const HALF_LIVES = [3, 5, 7, 10, 14];
 const DIVISORS = [8, 12, 16, 24, 32, 40];
@@ -13,8 +13,8 @@ const now = Date.now();
 const horizon = new Date(now - HORIZON_DAYS * 864e5).toISOString();
 
 const rows = db
-  .query<{ score: number; published_at: string }, [string]>(
-    'SELECT score, published_at FROM articles WHERE score IS NOT NULL AND published_at >= ?'
+  .query<{ score: number; published_at: string; source: string }, [string]>(
+    'SELECT score, published_at, source FROM articles WHERE score IS NOT NULL AND published_at >= ?'
   )
   .all(horizon);
 
@@ -75,7 +75,12 @@ const grid = (label: string, signalFor: (h: number) => number) => {
   }
 };
 
-grid('counter on the stored corpus', (h) => decayedSignal(rows, now, h));
+// The three grids are the fix's own check: the raw corpus reads low by however
+// much of the horizon its RSS windows leave empty, and normalising it per source
+// should land it on the steady-state projection. They differed by 1.5x before
+// (STU-1222).
+grid('counter on the stored corpus, raw', (h) => decayedSignal(rows, now, h));
+grid('counter on the stored corpus, normalised', (h) => normalizedSignal(rows, now, h));
 grid('counter projected to steady state', (h) => steadySignal(dailyScore, h));
 
 // A divisor is only defensible if the whole range fits: silence reads the floor,

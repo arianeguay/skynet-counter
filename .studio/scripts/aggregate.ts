@@ -1,6 +1,6 @@
 import { readContext, emit } from './rss.ts';
 import { openDb, readSnapshot } from '../../src/lib/db.ts';
-import { HORIZON_DAYS, decayedSignal, counterFrom } from '../../src/lib/counter.ts';
+import { HORIZON_DAYS, normalizedSignal, counterFrom } from '../../src/lib/counter.ts';
 
 interface Scored {
   url: string;
@@ -31,14 +31,16 @@ db.transaction(() => {
 })();
 
 // Recent risk decays with a 7-day half-life, so radio silence walks the counter
-// back down to BASE without a separate silence rule.
+// back down to BASE without a separate silence rule. `source` rides along because
+// the signal is normalised per feed — each covers a different slice of the
+// horizon, and the raw sum reads a young history as a safe world (STU-1222).
 const history = db
-  .query<{ score: number; published_at: string }, [string]>(
-    'SELECT score, published_at FROM articles WHERE score IS NOT NULL AND published_at >= ?'
+  .query<{ score: number; published_at: string; source: string }, [string]>(
+    'SELECT score, published_at, source FROM articles WHERE score IS NOT NULL AND published_at >= ?'
   )
   .all(new Date(now - HORIZON_DAYS * 864e5).toISOString());
 
-const counter = counterFrom(decayedSignal(history, now));
+const counter = counterFrom(normalizedSignal(history, now));
 
 // A dead feed costs the counter its input without failing the sweep, so the only
 // trace it leaves is this row. `failing_since` is what separates one publisher's
