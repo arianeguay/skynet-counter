@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { openDb, UNREADABLE_AFTER_ATTEMPTS } from '@/lib/db';
 import { DEFAULT_DOMAIN } from '@/lib/domains';
+import { cybersecurite } from '@/lib/domains/cybersecurite';
 import { afterAll, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -79,6 +80,9 @@ async function runDedupe(dbPath: string, articles: Fetched[] = [ARTICLE]) {
   expect(await proc.exited).toBe(0);
   return Object.assign(
     JSON.parse(out) as {
+      domain: string;
+      keyword_weights: Record<string, number>;
+      domain_guidance: string;
       new_count: number;
       seen_count: number;
       stranded_count: number;
@@ -255,6 +259,19 @@ test(
       ['active exploitation', 'vulnerability'],
       ['self-improving'],
     ]);
+  })
+);
+
+// The scorer's prompt no longer carries a weight table, so this output is the
+// only place it can learn what the keywords are worth (STU-1213).
+test(
+  'the batch carries the domain, its weights and its scoring guidance',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath);
+
+    expect(out.domain).toBe(DEFAULT_DOMAIN);
+    expect(out.keyword_weights).toEqual(cybersecurite.keywords);
+    expect(out.domain_guidance).toBe(cybersecurite.guidance);
   })
 );
 
