@@ -32,8 +32,8 @@ scan the validator runs, and the prompt's whole job is to keep or drop each one.
 Making the model do that scan itself — 24 keywords over 4000 characters of hydrated
 page text per article, 25 articles — is what had the group rejecting on its first
 iteration nearly every sweep, at full price each time (STU-1212). The validator does
-not read the field; it recomputes from `keywords.ts`, so handing the list over costs
-nothing in traceability.
+not read the field; it recomputes from the domain's own module, so handing the list
+over costs nothing in traceability.
 
 The scoring group is skipped when `dedupe` finds nothing new
 (`condition: stages.dedupe.output.new_count > 0`), so most hourly sweeps cost zero
@@ -41,11 +41,13 @@ tokens. Making that group run unconditionally is a cost regression, not a cleanu
 
 ### Adding a feed
 
-Add two lines to `feeds:` in
-[.studio/inputs/default.input.yaml](.studio/inputs/default.input.yaml). Nothing else:
-`fetch` is a map stage over that list, so the feed table lives in exactly one place.
-It used to live in two — five near-identical stages whose names had to match a table in
-`fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
+Add two lines to `feeds:` in `.studio/inputs/<domain>.input.yaml` — for the only
+domain that exists today,
+[.studio/inputs/cybersecurite.input.yaml](.studio/inputs/cybersecurite.input.yaml).
+Nothing else: `fetch` is a map stage over that list, so a domain's feed table lives in
+exactly one place. It used to live in two — five near-identical stages whose names had
+to match a table in `fetch-feed.ts` — and every hourly sweep failed the once they
+diverged (STU-1191).
 
 Every feed is scored against its linked page rather than its RSS summary. That is
 unconditional, and there is no per-feed opt-out: measuring all five feeds on 2026-09-01
@@ -119,29 +121,57 @@ descends into dot-directories, so a `.test.ts` under `.studio/` is skipped in si
 `bun test` reports the remaining files green and exits 0. A test placed there does not
 fail, it disappears.
 
-## The keyword table
+## Domains
 
-[src/lib/keywords.ts](src/lib/keywords.ts) is the source of truth. The matcher flattens
-punctuation and matches on substring, so inflections and hyphen variants land on the
-same keyword.
+A domain is the unit the whole pipeline is partitioned by: its own feeds, its own
+keyword table, its own scoring guidance, its own divisor, its own rows and its own
+counter. `SKYNET_DOMAIN` tells a sweep which one it is running; unset means
+`DEFAULT_DOMAIN`, and an unknown slug throws rather than falling back, because a typo
+that silently swept into an unread domain would look exactly like a counter that
+stopped moving.
 
-The scorer's system prompt carries a **hand-maintained second copy** of the same table.
-It has to: the prompt is static YAML and cannot import TypeScript, and the agent has to
-see the weights to compute a score at all. That copy is not authoritative — the
-validator scores from `keywords.ts`, so a prompt that drifts produces rejections, not
-wrong numbers.
+Config lives in two places, and the split is forced rather than chosen:
+
+- **`src/lib/domains/<slug>.ts`** — keyword weights, `guidance`, `divisor`, label. One
+  file per domain; `domains/index.ts` is the registry that lists them.
+- **`.studio/inputs/<slug>.input.yaml`** — the feed list, and only the feed list. The
+  `fetch` map stage fans out over `input.feeds`, and Studio reads YAML, not TypeScript.
+
+Do not mirror the feed list into the domain module. Two copies that have to agree is
+what STU-1191 already cost a sweep.
+
+Adding a domain is: a module under `src/lib/domains/`, an entry in its `DOMAINS`
+array, an input file named for the slug. Nothing in `db.ts`, `dedupe.ts` or
+`aggregate.ts` needs touching — they read `currentDomain()`.
+
+### The keyword table
+
+Each domain's table lives in its own module and the matcher in
+[src/lib/keywords.ts](src/lib/keywords.ts) is handed one rather than importing a
+global. The matcher flattens punctuation and matches on substring, so inflections and
+hyphen variants land on the same keyword.
+
+The scorer's prompt used to carry a **hand-maintained second copy** of the table. It
+does not any more, and must not grow one back: the prompt is one static file shared by
+every domain, so a copy there would be four tables to keep in step instead of one.
+`dedupe` emits `keyword_weights` and `domain_guidance` in its output and the prompt
+reads them from there. The validator still recomputes from the domain module and never
+from that output, so a batch cannot be approved by trusting what it was handed.
 
 Changing a keyword or a weight means editing, in this order:
 
-1. `src/lib/keywords.ts` — the only copy that decides anything
-2. `.studio/agents/scorer.agent.yaml` — the prompt's `KEYWORD WEIGHTS` block
-3. `README.md` — the published weights table
+1. `src/lib/domains/<slug>.ts` — the only copy that decides anything
+2. `README.md` — the published weights table, for the cybersecurity domain
 
 ## The database
 
 `data/skynet.db`, overridable with `SKYNET_DB`. `openDb()` in
-[src/lib/db.ts](src/lib/db.ts) creates the schema on open; there are no migrations, so a
-column added there reaches fresh databases only and an existing file keeps its old shape.
+[src/lib/db.ts](src/lib/db.ts) creates the schema on open.
+
+Every table is keyed by `domain` first: `articles` and `unread_pages` on
+`(domain, url)`, `feed_sweeps` on `(domain, source, swept_at)`, `counter` on `domain`
+alone. Every read takes a domain and every write supplies one — a query that forgets it
+pools four domains into one number.
 
 `articles` is the full history and doubles as the dedupe index, but only its *scored*
 rows: a URL with a score is never offered again, and a row left with `score IS NULL` is
@@ -151,8 +181,9 @@ That is what keeps a row from sitting unscored forever once its feed item rolls 
 publisher's window — re-offering only what `fetch` pulled recovers a missed article for
 a few days and then loses it. A stranded row is invisible to `readSnapshot()`, which
 filters on `score IS NOT NULL`, and absent from the counter's decayed sum, so it costs
-the number as well as the log. `counter` is a single row, recomputed from `articles`
-on every run and never asserted by a stage. The frontend only calls `readSnapshot()`.
+the number as well as the log. `counter` is one row per domain, recomputed from
+`articles` on every run and never asserted by a stage. The frontend only calls
+`readSnapshot(domain)`.
 
 The formula itself lives in [src/lib/counter.ts](src/lib/counter.ts), not in
 `aggregate.ts`, so [scripts/calibrate.ts](scripts/calibrate.ts) and the tests can reach
@@ -184,11 +215,19 @@ Rows are pruned past `SWEEP_RETENTION_DAYS`, and dropped outright for a source n
 in the input list — deleting a feed while it fails is the likely reason to delete it
 (STU-1198).
 
-State goes in a new table, never a column on an old one: `openDb()` has no migrations, so
-`CREATE TABLE IF NOT EXISTS` reaches an existing database while `ADD COLUMN` would need a
-hand-run `ALTER` on the live volume. Retiring a table is the mirror image — `openDb()`
-drops `feed_health` on open, which costs nothing because every row of it was rewritten
-each sweep anyway.
+State goes in a new table, never a column on an old one: `CREATE TABLE IF NOT EXISTS`
+reaches an existing database while `ADD COLUMN` would not. Retiring a table is the
+mirror image — `openDb()` drops `feed_health` on open, which costs nothing because every
+row of it was rewritten each sweep anyway.
+
+`migrateToDomains()` is the **one** exception, and the reason it had to be one is worth
+knowing before writing a second. Partitioning by domain does not add state; it labels
+rows that already exist, and the only copy of those rows is the volume behind the live
+counter. A new table would have left the old history unlabelled and every read joining
+two shapes. It is guarded on `articles.domain` existing, so it runs once and is a no-op
+on a fresh database, and [db.test.ts](src/lib/db.test.ts) seeds the exact pre-domain
+schema to prove it. Reach for that pattern only when the rows to change are already
+there and irreplaceable; otherwise the rule above still holds.
 
 `openDb()` reads `SKYNET_DB` **per call**, not once at import. It used to capture it at
 module load, which meant whichever file imported `db.ts` first decided the path for the
@@ -225,7 +264,9 @@ proof, not the edit.
 
 **`claude:web` — `bun test` and `bun run typecheck` are the whole proof:**
 
-- the keyword table, the matcher and the score maths (`src/lib/keywords.ts`)
+- the keyword tables, the matcher and the score maths (`src/lib/domains/`,
+  `src/lib/keywords.ts`)
+- the schema, its domain migration and the per-domain reads (`src/lib/db.ts`)
 - the validator (`.studio/scripts/validate-scores.ts`) — pure over fixtures
 - the dedupe filter and the aggregation maths — both run against a throwaway file via
   `SKYNET_DB=/tmp/x.db`

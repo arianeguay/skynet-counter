@@ -34,11 +34,17 @@ override Studio spawns `node` and every script stage dies on the import.
 ## Run the pipeline manually
 
 ```bash
-studio run skynet-counter --input-file .studio/inputs/default.input.yaml
-studio run skynet-counter --input-file .studio/inputs/default.input.yaml --live   # stream stages
-studio status                                                                     # last run
+export SKYNET_DOMAIN=cybersecurite   # which domain this sweep is for
+studio run skynet-counter --input-file .studio/inputs/$SKYNET_DOMAIN.input.yaml
+studio run skynet-counter --input-file .studio/inputs/$SKYNET_DOMAIN.input.yaml --live   # stream stages
+studio status                                                                            # last run
 studio logs <run-id>
 ```
+
+`SKYNET_DOMAIN` picks the feed list, the keyword table and the slice of every table
+the sweep reads and writes. Unset it and the sweep runs the default domain; set it to
+a slug no module defines and it fails on the spot rather than writing rows nothing
+serves.
 
 The first run scores everything the feeds return; later runs only score what the
 dedupe stage has not seen before, plus any row an earlier sweep inserted but never
@@ -59,18 +65,19 @@ route can import `bun:sqlite`. Running them under Node will fail at that import.
 
 | Stage | Executor | What it does |
 |---|---|---|
-| `fetch` (map over `input.feeds`) | script ×4 | One `fetch-feed` sub-pipeline run per feed — Ars Technica Security, The Hacker News, Krebs on Security, HN. The list lives in `.studio/inputs/default.input.yaml`, so adding a feed is two lines there. A feed that errors emits an empty batch with the reason, so one publisher's 502 does not take the sweep down. |
-| `dedupe` | script | Drops anything already *scored* in SQLite, by URL and by normalized title over the last 100 articles, and carries back any row still unscored from an earlier sweep. Caps the run at 25 articles, the backlog first; what the backlog leaves is shared round-robin across the sources that returned any, so a busy feed cannot crowd out a quiet one. Then reads each surviving article's linked page and scores against that text rather than the RSS summary — after the cap, so a page is fetched once instead of every sweep its item stays in the feed. An article whose page does not answer is held back rather than scored on its feed summary, and is offered again next sweep. Attaches each surviving article's `candidate_keywords` — the literal matches the scorer chooses from. |
+| `fetch` (map over `input.feeds`) | script ×4 | One `fetch-feed` sub-pipeline run per feed — Ars Technica Security, The Hacker News, Krebs on Security, HN. The list lives in `.studio/inputs/<domain>.input.yaml`, so adding a feed is two lines there. A feed that errors emits an empty batch with the reason, so one publisher's 502 does not take the sweep down. |
+| `dedupe` | script | Drops anything already *scored* in SQLite, by URL and by normalized title over the last 100 articles, and carries back any row still unscored from an earlier sweep. Caps the run at 25 articles, the backlog first; what the backlog leaves is shared round-robin across the sources that returned any, so a busy feed cannot crowd out a quiet one. Then reads each surviving article's linked page and scores against that text rather than the RSS summary — after the cap, so a page is fetched once instead of every sweep its item stays in the feed. An article whose page does not answer is held back rather than scored on its feed summary, and is offered again next sweep. Attaches each surviving article's `candidate_keywords` — the literal matches the scorer chooses from — along with the domain's weight table and scoring guidance. |
 | `scoring` (group, 3 iterations) | claude-code + script | `score` keeps or drops each of the article's `candidate_keywords` and sums the weights of the ones it kept; `validate-scores` recomputes every score and checks each claimed keyword literally appears in the article. A keyword that appears literally but names no real risk is dropped on purpose, and the scorer says so in `dropped_keywords` with a reason — an article whose every literal match is left out silently is rejected. A mismatch rejects the group and `score` retries with the issues as feedback. |
 | `aggregate` | script | Persists the scores, recomputes the counter, writes the snapshot. |
 
 **Anti-theatre:** the validator is a script, not a second model. It cannot be talked
 into approving a score, and a keyword the scorer invented fails on a substring check
-— it recomputes the matches from `keywords.ts` and never reads the candidate list
-`dedupe` handed the scorer.
+— it recomputes the matches from the domain's own module and never reads the candidate
+list or the weight table `dedupe` handed the scorer.
 
-**The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / 32`, clamped to 0–100, over the
-last 30 days. The 7-day half-life is what makes radio silence walk the number back
+**The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / DIVISOR`, clamped to 0–100, over
+the last 30 days. `DIVISOR` is the domain's — 32 for cybersecurity — because it is
+calibrated from a feed set's measured score per day. The 7-day half-life is what makes radio silence walk the number back
 down to the floor on its own — there is no separate decay rule to keep in sync.
 
 The divisor is set so the gauge spans the range the feeds actually produce. Measured
@@ -139,7 +146,8 @@ WorkingDirectory=%h/skynet-counter
 Environment=STUDIO_NODE_BIN=%h/.bun/bin/bun
 Environment=PATH=%h/.local/bin:%h/.bun/bin:%h/.local/share/pnpm:/usr/local/bin:/usr/bin:/bin
 TimeoutStartSec=900
-ExecStart=/usr/bin/env studio run skynet-counter --input-file .studio/inputs/default.input.yaml
+Environment=SKYNET_DOMAIN=cybersecurite
+ExecStart=/usr/bin/env studio run skynet-counter --input-file .studio/inputs/cybersecurite.input.yaml
 ```
 
 A user service starts with a minimal environment, so the `PATH` line is not optional:
@@ -246,8 +254,11 @@ ubersicht`) and no Xcode, no signing and no Apple account;
 
 ## Keyword weights
 
-Defined once in [src/lib/keywords.ts](src/lib/keywords.ts) and consumed by both the
-validator and the agent prompt. Change them there.
+One table per domain, in `src/lib/domains/<slug>.ts`. The table below is the
+cybersecurity domain's, defined in
+[src/lib/domains/cybersecurite.ts](src/lib/domains/cybersecurite.ts) — change them
+there. The validator recomputes from that module; the scorer is handed the same table
+through the `dedupe` stage output, so neither carries a copy of its own.
 
 | Keyword | Weight | | Keyword | Weight |
 |---|---|---|---|---|
