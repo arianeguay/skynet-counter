@@ -126,7 +126,8 @@ test('a linked page that is not HTML leaves the feed summary in place', async ()
 
 test('every feed the input declares carries a source and a url', () => {
   const input = readFileSync('.studio/inputs/default.input.yaml', 'utf8');
-  const feeds = [...input.matchAll(/^ {2}- source: (.+)\n {4}url: (\S+)$/gm)];
-  expect(feeds.length).toBe(5);
-  expect(new Set(feeds.map((m) => m[1])).size).toBe(5);
+  const declared = [...input.matchAll(/^ {2}- source: (.+)$/gm)].map((m) => m[1]!);
+  const paired = [...input.matchAll(/^ {2}- source: (.+)\n {4}url: (\S+)$/gm)];
+  expect(paired.length).toBe(declared.length);
+  expect(new Set(declared).size).toBe(declared.length);
 });
