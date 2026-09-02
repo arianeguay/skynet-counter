@@ -1,4 +1,4 @@
-import { readContext, emit, type RawArticle } from './rss.ts';
+import { readContext, emit, hydrateSummaries, type RawArticle } from './rss.ts';
 import { openDb } from '../../src/lib/db.ts';
 import { matchedKeywords } from '../../src/lib/keywords.ts';
 
@@ -105,6 +105,16 @@ for (const a of fetched) {
 
 const added = shareBySource(fresh, Math.max(0, MAX_PER_RUN - stranded.length));
 
+// The linked pages are read here rather than in `fetch` so each is fetched once
+// instead of once an hour for as long as its item sits in the publisher's
+// window: `fetch` pulls ~110 items a sweep and all but this handful are already
+// scored. The backlog is not re-hydrated — a stranded row was stored with its
+// page text on the run that inserted it (STU-1206).
+const { articles: hydrated, failed: hydrationFailures } = await hydrateSummaries(added);
+if (hydrationFailures) {
+  process.stderr.write(`dedupe loaded ${added.length - hydrationFailures} of ${added.length} linked pages\n`);
+}
+
 // Finding the literal matches is a substring scan over 4000 characters of hydrated
 // page text per article, and the scorer used to be asked to do it from reading —
 // then the validator ran the same scan with matchedKeywords() and rejected the
@@ -112,13 +122,15 @@ const added = shareBySource(fresh, Math.max(0, MAX_PER_RUN - stranded.length));
 // is handed over already done; the judgement the scorer is there for, keep or drop,
 // is not. The validator still recomputes from keywords.ts and never reads this
 // field, so a batch cannot be approved by trusting it.
-const articles = [...stranded, ...added].map((a) => ({
+const articles = [...stranded, ...hydrated].map((a) => ({
   ...a,
   candidate_keywords: matchedKeywords(`${a.title} ${a.summary}`),
 }));
 
+// The hydrated summary is what gets stored, so a row re-offered from the backlog
+// carries its page text and needs no second fetch.
 db.transaction(() => {
-  for (const a of added) insert.run(a.url, a.title, a.source, a.publishedAt, a.summary);
+  for (const a of hydrated) insert.run(a.url, a.title, a.source, a.publishedAt, a.summary);
 })();
 db.close();
 
@@ -126,5 +138,6 @@ emit({
   new_count: articles.length,
   seen_count: fetched.length,
   stranded_count: stranded.length,
+  hydration_failures: hydrationFailures,
   articles,
 });

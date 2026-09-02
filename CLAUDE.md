@@ -47,13 +47,19 @@ Add two lines to `feeds:` in
 It used to live in two — five near-identical stages whose names had to match a table in
 `fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
 
-The stage reads each linked page and scores that text rather than the RSS summary, at one
-request per item. That is unconditional, and there is no per-feed opt-out: measuring all
-five feeds on 2026-09-01 (STU-1200) found the summary worse everywhere, from 3.3x on the
-mildest feed to hnrss, whose "Article URL / Comments URL / Points" boilerplate scores a
-structural zero (STU-1192). A feed added later that should *not* be hydrated needs the
-flag put back, not a threshold — Ars Technica's summaries run 9-15 words, the same range
-as HN's boilerplate, so no word count separates them.
+Every feed is scored against its linked page rather than its RSS summary. That is
+unconditional, and there is no per-feed opt-out: measuring all five feeds on 2026-09-01
+(STU-1200) found the summary worse everywhere, from 3.3x on the mildest feed to hnrss,
+whose "Article URL / Comments URL / Points" boilerplate scores a structural zero
+(STU-1192). A feed added later that should *not* be hydrated needs the flag put back,
+not a threshold — Ars Technica's summaries run 9-15 words, the same range as HN's
+boilerplate, so no word count separates them.
+
+**`dedupe` does the hydrating, not `fetch`.** It runs after the seen-index filter and
+the `MAX_PER_RUN` cap, so a page is fetched once rather than once an hour for as long
+as its item stays in the publisher's window — `fetch` pulls ~110 items a sweep and all
+but a handful are already scored (STU-1206). The hydrated text is what gets stored, so
+a row re-offered from the backlog needs no second fetch.
 
 A fetch run never throws on a dead feed; it emits an empty batch with the reason instead,
 and `on_item_failure: collect-all` keeps the other feeds' runs going. Hydration follows the
