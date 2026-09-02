@@ -66,7 +66,7 @@ export function parseFeed(xml: string, source: string): RawArticle[] {
 
 export interface Hydration {
   articles: RawArticle[];
-  failed: number;
+  failed: RawArticle[];
 }
 
 export const USER_AGENT = 'skynet-counter/0.1 (+https://skynet-counter.com)';
@@ -91,10 +91,10 @@ async function pageText(url: string): Promise<string> {
 // 20 on hnrss, whose `<description>` is the same "Article URL / Comments URL /
 // Points" boilerplate every time. `dedupe` is the caller, so the cost is one
 // request per article that will actually be scored, not per item in the window.
-// Failure keeps the feed's own summary, so a feed is never worse off for it.
-// It is worse off than it looks, though: falling back leaves the article scored
-// on boilerplate, which is the structural zero hydration exists to remove — so
-// the fallbacks are counted rather than swallowed.
+// An article whose page did not load is returned in `failed` rather than with
+// its feed summary patched back in. Scoring it on that summary is what made a
+// one-minute outage permanent: the boilerplate scores 0, the row joins the
+// seen-index, and no later sweep ever offers it again (STU-1204).
 export async function hydrateSummaries(articles: RawArticle[]): Promise<Hydration> {
   const hydrated = await Promise.all(
     articles.map(async (a) => {
@@ -107,8 +107,8 @@ export async function hydrateSummaries(articles: RawArticle[]): Promise<Hydratio
     })
   );
   return {
-    articles: hydrated.map((a, i) => a ?? articles[i]!),
-    failed: hydrated.filter((a) => a === null).length,
+    articles: hydrated.filter((a): a is RawArticle => a !== null),
+    failed: articles.filter((_, i) => hydrated[i] === null),
   };
 }
 

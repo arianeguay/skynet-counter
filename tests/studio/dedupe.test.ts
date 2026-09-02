@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,12 +14,48 @@ interface Fetched {
   summary: string;
 }
 
+// Hydration runs in this stage now (STU-1206) and an article whose page does not
+// load is held back rather than scored on its feed summary (STU-1204) — so every
+// fixture needs a page that answers. `/page` echoes the article's own summary
+// back, which makes hydration a no-op for the tests that are not about it.
+let pageRequests = 0;
+let flakyRefusals = 1;
+const pages = Bun.serve({
+  port: 0,
+  fetch(req) {
+    pageRequests++;
+    const url = new URL(req.url);
+    const html = (body: string) =>
+      new Response(`<html><body>${body}</body></html>`, { headers: { 'content-type': 'text/html' } });
+
+    if (url.pathname === '/dead') return new Response('gone', { status: 404 });
+    if (url.pathname === '/pdf') return new Response('%PDF-1.4', { headers: { 'content-type': 'application/pdf' } });
+    if (url.pathname === '/flaky') {
+      if (flakyRefusals-- > 0) return new Response('gone', { status: 503 });
+      return html('<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p>');
+    }
+    if (url.pathname === '/chrome') {
+      return new Response(
+        '<html><head><style>.n{color:red}</style></head><body><nav>Ransomware</nav>' +
+          '<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p></body></html>',
+        { headers: { 'content-type': 'text/html' } }
+      );
+    }
+    return html(`<p>${url.searchParams.get('text') ?? ''}</p>`);
+  },
+});
+afterAll(() => pages.stop(true));
+
+const ORIGIN = pages.url.origin;
+const page = (path: string, text: string) => `${ORIGIN}${path}?text=${encodeURIComponent(text)}`;
+
+const MAC_SUMMARY = 'Screen-sharing bug lets remote hackers log in without a password.';
 const ARTICLE: Fetched = {
   title: 'Vulnerability giving attackers full control of Macs is under active exploitation',
-  url: 'http://127.0.0.1:1/macs-exploit',
+  url: page('/macs-exploit', MAC_SUMMARY),
   source: 'arstechnica',
   publishedAt: '2026-09-01T00:00:00.000Z',
-  summary: 'Screen-sharing bug lets remote hackers log in without a password.',
+  summary: MAC_SUMMARY,
 };
 
 async function runDedupe(dbPath: string, articles: Fetched[] = [ARTICLE]) {
@@ -79,7 +115,7 @@ function batch(source: string, count: number, startedAt: string): Fetched[] {
   const start = Date.parse(startedAt);
   return Array.from({ length: count }, (_, i) => ({
     title: `${source} story ${i}`,
-    url: `http://127.0.0.1:1/${source.replace(/\W+/g, '-').toLowerCase()}/${i}`,
+    url: page(`/${source.replace(/\W+/g, '-').toLowerCase()}/${i}`, `${source} summary ${i}`),
     source,
     publishedAt: new Date(start - i * 60_000).toISOString(),
     summary: `${source} summary ${i}`,
@@ -142,7 +178,7 @@ test(
     const backlog = Array.from({ length: 30 }, (_, i) => ({
       ...ARTICLE,
       title: `Stranded article ${i}`,
-      url: `http://127.0.0.1:1/stranded-${i}`,
+      url: page(`/stranded-${i}`, ARTICLE.summary),
     }));
     strand(dbPath, backlog);
 
@@ -196,7 +232,7 @@ test(
       {
         ...ARTICLE,
         title: 'An AI model quietly rewrote its own weights',
-        url: 'http://127.0.0.1:1/self-improving',
+        url: page('/self-improving', 'Researchers describe a self-improving system that resisted a shutdown.'),
         summary: 'Researchers describe a self-improving system that resisted a shutdown.',
       },
     ]);
@@ -215,7 +251,7 @@ test(
       {
         ...ARTICLE,
         title: 'A chatbot wrote a sonnet about lawn care',
-        url: 'https://example.com/sonnet',
+        url: page('/sonnet', 'No risk vocabulary anywhere in this one.'),
         summary: 'No risk vocabulary anywhere in this one.',
       },
     ]);
@@ -225,49 +261,13 @@ test(
 );
 
 
-// Hydration moved into this stage (STU-1206), so a linked page is now a real
-// request made here. The stub counts them, because "an already-scored article
-// costs no request" is the whole point of the move.
-function servePages() {
-  let requests = 0;
-  const server = Bun.serve({
-    port: 0,
-    fetch(req) {
-      requests++;
-      const path = new URL(req.url).pathname;
-      if (path === '/dead') return new Response('gone', { status: 404 });
-      if (path === '/pdf') return new Response('%PDF-1.4', { headers: { 'content-type': 'application/pdf' } });
-      return new Response(
-        '<html><head><style>.n{color:red}</style></head><body><nav>Ransomware</nav>' +
-          '<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p></body></html>',
-        { headers: { 'content-type': 'text/html' } }
-      );
-    },
-  });
-  return { origin: server.url.origin, stop: () => server.stop(true), count: () => requests };
-}
-
-function withPages(body: (pages: ReturnType<typeof servePages>, dbPath: string) => Promise<void>) {
-  return withDb(async (dbPath) => {
-    const pages = servePages();
-    try {
-      await body(pages, dbPath);
-    } finally {
-      pages.stop();
-    }
-  });
-}
-
-const linked = (pages: { origin: string }, path: string): Fetched => ({
-  ...ARTICLE,
-  url: `${pages.origin}${path}`,
-  summary: 'Article URL: http://example.com Comments URL: https://news.ycombinator.com/item?id=1',
-});
+const BOILERPLATE = 'Article URL: http://example.com Comments URL: https://news.ycombinator.com/item?id=1';
+const linked = (path: string): Fetched => ({ ...ARTICLE, url: `${ORIGIN}${path}`, summary: BOILERPLATE });
 
 test(
   'a fresh article is scored against its linked page, not its feed summary',
-  withPages(async (pages, dbPath) => {
-    const out = await runDedupe(dbPath, [linked(pages, '/post')]);
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [linked('/chrome')]);
 
     expect(out.articles[0]?.summary).toContain('exploited 87%');
     // Chrome is stripped, so a nav item cannot lend the page a keyword it never used.
@@ -282,21 +282,21 @@ test(
 // re-fetched the same page every hour for as long as it stayed in the window.
 test(
   'an article already scored costs no page request',
-  withPages(async (pages, dbPath) => {
-    const article = linked(pages, '/post');
-    await runDedupe(dbPath, [article]);
-    expect(pages.count()).toBe(1);
+  withDb(async (dbPath) => {
+    const before = pageRequests;
+    await runDedupe(dbPath, [ARTICLE]);
+    expect(pageRequests - before).toBe(1);
 
     const db = new Database(dbPath);
     db.query('UPDATE articles SET score = 5, scored_at = ? WHERE url = ?').run(
       new Date().toISOString(),
-      article.url
+      ARTICLE.url
     );
     db.close();
 
-    const second = await runDedupe(dbPath, [article]);
+    const second = await runDedupe(dbPath, [ARTICLE]);
     expect(second.new_count).toBe(0);
-    expect(pages.count()).toBe(1);
+    expect(pageRequests - before).toBe(1);
   })
 );
 
@@ -304,30 +304,52 @@ test(
 // is scored on its page text without paying a second request.
 test(
   'a stranded row keeps its page text and is not re-fetched',
-  withPages(async (pages, dbPath) => {
-    const article = linked(pages, '/post');
-    await runDedupe(dbPath, [article]);
-    expect(pages.count()).toBe(1);
+  withDb(async (dbPath) => {
+    const before = pageRequests;
+    await runDedupe(dbPath, [ARTICLE]);
+    expect(pageRequests - before).toBe(1);
 
     const second = await runDedupe(dbPath, []);
     expect(second.stranded_count).toBe(1);
-    expect(second.articles[0]?.summary).toContain('exploited 87%');
-    expect(pages.count()).toBe(1);
+    expect(second.articles[0]?.summary).toBe(ARTICLE.summary);
+    expect(pageRequests - before).toBe(1);
   })
 );
 
-// Hydration is best-effort: a dead link costs the article its page text, not its
-// row. Falling back is counted rather than swallowed, because a boilerplate
-// summary is the structural zero hydration exists to remove.
+// Scoring the feed summary instead is what made a one-minute outage permanent:
+// hnrss boilerplate scores 0, `aggregate` writes that 0, and the URL joins the
+// `score IS NOT NULL` seen-index for good.
 test(
-  'a linked page that does not answer leaves the feed summary in place',
-  withPages(async (pages, dbPath) => {
-    const article = linked(pages, '/dead');
-    const out = await runDedupe(dbPath, [article]);
+  'an article whose linked page does not answer is held back, not scored on boilerplate',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [linked('/dead')]);
 
-    expect(out.articles[0]?.summary).toBe(article.summary);
+    expect(out.articles).toEqual([]);
+    expect(out.new_count).toBe(0);
     expect(out.hydration_failures).toBe(1);
     expect(out.stderr).toContain('dedupe loaded 0 of 1 linked pages');
+  })
+);
+
+// Held back means never seen, so nothing has to remember it: the next sweep
+// pulls the same item off the feed and tries the page again.
+test(
+  'a held-back article is offered again, and scored on its page once it answers',
+  withDb(async (dbPath) => {
+    const article = linked('/flaky');
+
+    const first = await runDedupe(dbPath, [article]);
+    expect(first.articles).toEqual([]);
+
+    // Nothing was inserted, so the seen-index cannot have swallowed it.
+    const db = new Database(dbPath);
+    expect(db.query('SELECT COUNT(*) n FROM articles').get()).toEqual({ n: 0 });
+    db.close();
+
+    const second = await runDedupe(dbPath, [article]);
+    expect(second.articles[0]?.url).toBe(article.url);
+    expect(second.articles[0]?.summary).toContain('exploited 87%');
+    expect(second.hydration_failures).toBe(0);
   })
 );
 
@@ -335,24 +357,22 @@ test(
 // content-type check is the only thing that can keep it out of the summary —
 // drop that check and this is the test that notices.
 test(
-  'a linked page that is not HTML leaves the feed summary in place',
-  withPages(async (pages, dbPath) => {
-    const article = linked(pages, '/pdf');
-    const out = await runDedupe(dbPath, [article]);
+  'a linked page that is not HTML is held back too',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [linked('/pdf')]);
 
-    expect(out.articles[0]?.summary).toBe(article.summary);
+    expect(out.articles).toEqual([]);
     expect(out.hydration_failures).toBe(1);
   })
 );
 
+// One unreadable page must cost its own article and nothing else.
 test(
-  'a batch that loses only some of its pages reports the count',
-  withPages(async (pages, dbPath) => {
-    const out = await runDedupe(dbPath, [
-      { ...linked(pages, '/post'), title: 'A live page' },
-      { ...linked(pages, '/dead'), title: 'A dead page' },
-    ]);
+  'a batch that loses one page still scores the rest',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [ARTICLE, { ...linked('/dead'), title: 'A dead page' }]);
 
+    expect(out.articles.map((a) => a.url)).toEqual([ARTICLE.url]);
     expect(out.hydration_failures).toBe(1);
     expect(out.stderr).toContain('dedupe loaded 1 of 2 linked pages');
   })

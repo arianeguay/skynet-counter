@@ -62,11 +62,15 @@ but a handful are already scored (STU-1206). The hydrated text is what gets stor
 a row re-offered from the backlog needs no second fetch.
 
 A fetch run never throws on a dead feed; it emits an empty batch with the reason instead,
-and `on_item_failure: collect-all` keeps the other feeds' runs going. Hydration follows the
-same rule: a linked page that does not answer, or is not HTML, keeps the feed's own summary.
-Falling back is counted, not swallowed — `hydration_failures` rides out on the fetch output,
-a partial loss goes to stderr, and losing every page becomes the feed's `error`, because a
-batch scored on boilerplate is the structural zero hydration exists to remove.
+and `on_item_failure: collect-all` keeps the other feeds' runs going.
+
+Hydration fails differently. A linked page that does not answer, or is not HTML, **holds
+its article back** rather than letting it through on the feed summary — that summary is
+hnrss boilerplate, so scoring it writes a 0, and the URL then joins the `score IS NOT NULL`
+seen-index for good. A one-minute outage cost an article its score permanently (STU-1204).
+Held back means never inserted, so nothing has to remember it: the next sweep pulls the
+same item off the feed and tries the page again, bounded by the publisher's own window.
+`hydration_failures` rides out on dedupe's output and a partial loss goes to stderr.
 
 A map child does **not** receive its input as an object. The engine YAML-dumps the item
 into `additional_context`, so `fetch-feed.ts` reads it back through `readInput()` in
