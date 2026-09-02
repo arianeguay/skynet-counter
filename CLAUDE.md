@@ -204,7 +204,7 @@ proof, not the edit.
 
 - **the `claude` CLI session.** The `claude-code` provider spawns the CLI and rides
   whatever login it has. There is no API key, so there is nothing to hand a sandbox.
-- **live reads of the five feeds.** A fixture proves the parser; it never proves what
+- **live reads of the feeds.** A fixture proves the parser; it never proves what
   the publishers are actually emitting today.
 - **accumulated history in `data/skynet.db`.** Anything that depends on weeks of scored
   articles — counter calibration, decay behaviour — cannot be shown against an empty

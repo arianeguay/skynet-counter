@@ -1,7 +1,7 @@
 export const BASE = 12;
 export const HALF_LIFE_DAYS = 7;
 // Calibrated 2026-09-01 by `bun run calibrate` against the live corpus, whose
-// five feeds publish 97 points of score a day between them. At a 7-day
+// feeds publish 97 points of score a day between them. At a 7-day
 // half-life that settles at a steady signal of ~930, so /32 reads 41 on an
 // ordinary week, 70 on a doubled one, and still stops short of 100 on a tripled
 // one. The previous /8 was guessed while every article scored 0; it pegs the

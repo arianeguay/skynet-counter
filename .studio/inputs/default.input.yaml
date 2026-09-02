@@ -7,11 +7,13 @@ run: scheduled
 feeds:
   - source: Ars Technica Security
     url: https://arstechnica.com/security/feed
-  - source: Ars Technica AI
-    url: https://arstechnica.com/ai/feed
   - source: The Hacker News
     url: https://thehackernews.com/feeds/posts/default
   - source: Krebs on Security
     url: https://krebsonsecurity.com/feed/
+  # 2 of 25 articles above zero, 1.5% of the signal, measured twice a day apart.
+  # Kept as the only source that is not security trade press — the other three
+  # cover one beat. Ars Technica AI went on that same measurement, at 0 of 18
+  # over two readings, contributing no score to remove (STU-1221).
   - source: Hacker News
     url: https://hnrss.org/newest?q=AI+OR+LLM+OR+agent+OR+exploit&points=80
