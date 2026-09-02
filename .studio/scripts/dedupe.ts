@@ -110,9 +110,17 @@ const added = shareBySource(fresh, Math.max(0, MAX_PER_RUN - stranded.length));
 // window: `fetch` pulls ~110 items a sweep and all but this handful are already
 // scored. The backlog is not re-hydrated — a stranded row was stored with its
 // page text on the run that inserted it (STU-1206).
-const { articles: hydrated, failed: hydrationFailures } = await hydrateSummaries(added);
-if (hydrationFailures) {
-  process.stderr.write(`dedupe loaded ${added.length - hydrationFailures} of ${added.length} linked pages\n`);
+//
+// An article whose page did not load is held back rather than scored on its feed
+// summary. Scoring it there is what made a one-minute outage permanent: the
+// boilerplate scores 0, `aggregate` writes that 0, and the URL joins the
+// `score IS NOT NULL` seen-index for good. Held back it is simply never seen, so
+// the next sweep pulls it from the feed and tries the page again — bounded by
+// the publisher's own window, which is what bounds every other retry here
+// (STU-1204).
+const { articles: hydrated, failed: unread } = await hydrateSummaries(added);
+if (unread.length) {
+  process.stderr.write(`dedupe loaded ${hydrated.length} of ${added.length} linked pages\n`);
 }
 
 // Finding the literal matches is a substring scan over 4000 characters of hydrated
@@ -138,6 +146,6 @@ emit({
   new_count: articles.length,
   seen_count: fetched.length,
   stranded_count: stranded.length,
-  hydration_failures: hydrationFailures,
+  hydration_failures: unread.length,
   articles,
 });
