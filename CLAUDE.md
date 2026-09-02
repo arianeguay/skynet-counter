@@ -162,13 +162,29 @@ The projection measures each feed over its own window and sums them, which is wh
 `calibrate` prints a per-feed rate rather than one articles/day for the corpus
 (STU-1171).
 
-`feed_health` is one row per source, written by `aggregate` from the `fetch` outputs,
-and it is where a dead feed — or a hydrated feed whose linked pages all fail — becomes
-visible; nothing else in the run reports one, since `fetch-feed.ts` deliberately does not
-throw. It is a table rather than a column on
-`counter` because `openDb()` has no migrations: `CREATE TABLE IF NOT EXISTS` reaches an
-existing database, `ADD COLUMN` would have needed a hand-run `ALTER` on the live volume.
-Add state here the same way — a new table, never a column on an old one.
+`feed_sweeps` is **one row per source per sweep** — the fetch outcome and the number of
+linked pages `dedupe` could not read — and it is where a feed that stops contributing
+becomes visible; nothing else in the run reports one, since `fetch-feed.ts` deliberately
+does not throw. It replaced a `feed_health` table holding one row per source, because a
+feed that fails 23 hours out of 24 never holds a day-old failure and so was invisible to
+anything that only knew the current state (STU-1207). `readFeedErrors()` derives both
+shapes from it: the length of the trailing run of failures, and the failure ratio over
+the last 24 hours.
+
+Rows are pruned past `SWEEP_RETENTION_DAYS`, and dropped outright for a source no longer
+in the input list — deleting a feed while it fails is the likely reason to delete it
+(STU-1198).
+
+State goes in a new table, never a column on an old one: `openDb()` has no migrations, so
+`CREATE TABLE IF NOT EXISTS` reaches an existing database while `ADD COLUMN` would need a
+hand-run `ALTER` on the live volume. Retiring a table is the mirror image — `openDb()`
+drops `feed_health` on open, which costs nothing because every row of it was rewritten
+each sweep anyway.
+
+`openDb()` reads `SKYNET_DB` **per call**, not once at import. It used to capture it at
+module load, which meant whichever file imported `db.ts` first decided the path for the
+whole process — adding an unrelated import to a component moved another suite's database
+onto `data/skynet.db`.
 
 The file is gitignored. The history that matters — the one behind the live counter —
 exists only on the host serving the site, never in a checkout.

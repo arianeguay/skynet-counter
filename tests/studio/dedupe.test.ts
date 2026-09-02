@@ -75,7 +75,7 @@ async function runDedupe(dbPath: string, articles: Fetched[] = [ARTICLE]) {
       new_count: number;
       seen_count: number;
       stranded_count: number;
-      hydration_failures: number;
+      pages_unread: Record<string, number>;
       articles: (Fetched & { candidate_keywords: string[] })[];
     },
     { stderr: err }
@@ -273,7 +273,7 @@ test(
     // Chrome is stripped, so a nav item cannot lend the page a keyword it never used.
     expect(out.articles[0]?.summary).not.toContain('Ransomware');
     expect(out.articles[0]?.summary).not.toContain('color:red');
-    expect(out.hydration_failures).toBe(0);
+    expect(out.pages_unread).toEqual({});
   })
 );
 
@@ -326,7 +326,7 @@ test(
 
     expect(out.articles).toEqual([]);
     expect(out.new_count).toBe(0);
-    expect(out.hydration_failures).toBe(1);
+    expect(out.pages_unread).toEqual({ arstechnica: 1 });
     expect(out.stderr).toContain('dedupe loaded 0 of 1 linked pages');
   })
 );
@@ -349,7 +349,7 @@ test(
     const second = await runDedupe(dbPath, [article]);
     expect(second.articles[0]?.url).toBe(article.url);
     expect(second.articles[0]?.summary).toContain('exploited 87%');
-    expect(second.hydration_failures).toBe(0);
+    expect(second.pages_unread).toEqual({});
   })
 );
 
@@ -362,7 +362,7 @@ test(
     const out = await runDedupe(dbPath, [linked('/pdf')]);
 
     expect(out.articles).toEqual([]);
-    expect(out.hydration_failures).toBe(1);
+    expect(out.pages_unread).toEqual({ arstechnica: 1 });
   })
 );
 
@@ -373,7 +373,7 @@ test(
     const out = await runDedupe(dbPath, [ARTICLE, { ...linked('/dead'), title: 'A dead page' }]);
 
     expect(out.articles.map((a) => a.url)).toEqual([ARTICLE.url]);
-    expect(out.hydration_failures).toBe(1);
+    expect(out.pages_unread).toEqual({ arstechnica: 1 });
     expect(out.stderr).toContain('dedupe loaded 1 of 2 linked pages');
   })
 );
