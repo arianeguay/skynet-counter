@@ -40,3 +40,14 @@ export function counterFrom(signal: number, base = BASE, divisor = DIVISOR): num
 export function steadySignal(dailyScore: number, halfLifeDays = HALF_LIFE_DAYS, horizonDays = HORIZON_DAYS): number {
   return dailyScore * (halfLifeDays / Math.LN2) * (1 - 0.5 ** (horizonDays / halfLifeDays));
 }
+
+// The counter's four bands, as the site prints them. This lives here rather
+// than in `CounterHero` because that component is `'use client'`: the summary
+// route the desktop widget polls has to reach the thresholds from the server,
+// and a widget that carried its own copy would drift the moment a band moved.
+export function statusLine(counter: number): string {
+  if (counter >= 60) return 'CONTAINMENT DEGRADED';
+  if (counter >= 35) return 'ELEVATED ACTIVITY';
+  if (counter >= 18) return 'BACKGROUND CHATTER';
+  return 'NOMINAL';
+}
