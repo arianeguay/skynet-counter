@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
-import { UNREADABLE_AFTER_ATTEMPTS } from '@/lib/db';
+import { openDb, UNREADABLE_AFTER_ATTEMPTS } from '@/lib/db';
+import { DEFAULT_DOMAIN } from '@/lib/domains';
 import { afterAll, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -100,20 +101,26 @@ function withDb(body: (dbPath: string) => Promise<void>) {
   };
 }
 
+// Through `openDb()` rather than a hand-written CREATE TABLE: a second copy of
+// the schema here drifted the moment the real one gained a column, and the
+// mismatch surfaced as a crash inside the script under test rather than as a
+// failing assertion.
 function strand(dbPath: string, articles: Fetched[]): void {
-  const db = new Database(dbPath, { create: true });
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS articles (
-      url TEXT PRIMARY KEY, title TEXT NOT NULL, source TEXT NOT NULL,
-      published_at TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
-      score INTEGER, matched_keywords TEXT, evidence TEXT, scored_at TEXT
+  const previous = process.env.SKYNET_DB;
+  process.env.SKYNET_DB = dbPath;
+  try {
+    const db = openDb();
+    const insert = db.prepare(
+      'INSERT OR IGNORE INTO articles (domain, url, title, source, published_at, summary) VALUES (?, ?, ?, ?, ?, ?)'
     );
-  `);
-  const insert = db.prepare(
-    'INSERT OR IGNORE INTO articles (url, title, source, published_at, summary) VALUES (?, ?, ?, ?, ?)'
-  );
-  for (const a of articles) insert.run(a.url, a.title, a.source, a.publishedAt, a.summary);
-  db.close();
+    for (const a of articles) {
+      insert.run(DEFAULT_DOMAIN, a.url, a.title, a.source, a.publishedAt, a.summary);
+    }
+    db.close();
+  } finally {
+    if (previous === undefined) delete process.env.SKYNET_DB;
+    else process.env.SKYNET_DB = previous;
+  }
 }
 
 // Newest first, so a global newest-first cut would take the busy feed's 40 and

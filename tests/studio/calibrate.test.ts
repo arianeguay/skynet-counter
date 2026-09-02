@@ -3,16 +3,26 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
-import { counterFrom, decayedSignal } from '@/lib/counter';
+import { BASE, counterFrom, decayedSignal } from '@/lib/counter';
+import { DEFAULT_DOMAIN } from '@/lib/domains';
+import { cybersecurite } from '@/lib/domains/cybersecurite';
 
 const SCRIPT = new URL('../../scripts/calibrate.ts', import.meta.url).pathname;
 
 function dbWith(rows: { score: number | null; published_at: string; source?: string }[]) {
   const path = join(mkdtempSync(join(tmpdir(), 'skynet-cal-')), 'x.db');
   const db = new Database(path);
-  db.run('CREATE TABLE articles (url TEXT PRIMARY KEY, source TEXT NOT NULL, published_at TEXT NOT NULL, score INTEGER)');
+  db.run(
+    'CREATE TABLE articles (domain TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, published_at TEXT NOT NULL, score INTEGER, PRIMARY KEY (domain, url))'
+  );
   rows.forEach((r, i) =>
-    db.run('INSERT INTO articles VALUES (?, ?, ?, ?)', [`u${i}`, r.source ?? 'A Feed', r.published_at, r.score])
+    db.run('INSERT INTO articles VALUES (?, ?, ?, ?, ?)', [
+      DEFAULT_DOMAIN,
+      `u${i}`,
+      r.source ?? 'A Feed',
+      r.published_at,
+      r.score,
+    ])
   );
   db.close();
   return path;
@@ -34,7 +44,11 @@ test('the grid reproduces the counter the formula would publish', async () => {
   const { code, out } = await calibrate(dbWith(rows));
   expect(code).toBe(0);
   // 20 at age 0 plus 10 at one half-life = 20 + 5 = 25 signal, so BASE + 25/32.
-  const expected = counterFrom(decayedSignal(rows.map((r) => ({ ...r, score: r.score })), Date.now()));
+  const expected = counterFrom(
+    decayedSignal(rows.map((r) => ({ ...r, score: r.score })), Date.now()),
+    BASE,
+    cybersecurite.divisor
+  );
   expect(expected).toBeCloseTo(12.8, 1);
   expect(out).toContain(expected.toFixed(1));
   expect(out).toContain('2 scored articles');

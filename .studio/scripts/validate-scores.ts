@@ -1,5 +1,11 @@
 import { readContext, emit, type RawArticle } from './rss.ts';
-import { KEYWORD_WEIGHTS, matchedKeywords, scoreFor } from '../../src/lib/keywords.ts';
+import { matchedKeywords, scoreFor } from '../../src/lib/keywords.ts';
+import { currentDomain } from '../../src/lib/domains/index.ts';
+
+// Read from the domain's own module, never from the `keyword_weights` the dedupe
+// stage hands the scorer. The validator's whole value is that it recomputes from
+// a source the batch under test cannot influence (STU-1213).
+const { keywords: weights } = currentDomain();
 
 interface Dropped {
   keyword?: string;
@@ -40,13 +46,13 @@ for (const s of scored) {
     continue;
   }
 
-  const present = new Set(matchedKeywords(`${source.title} ${source.summary}`));
+  const present = new Set(matchedKeywords(`${source.title} ${source.summary}`, weights));
   const keywords = s.matched_keywords ?? [];
   const kept = new Set(keywords.map((k) => k.toLowerCase().trim()));
 
   for (const k of keywords) {
     const key = k.toLowerCase().trim();
-    if (!(key in KEYWORD_WEIGHTS)) {
+    if (!(key in weights)) {
       issues.push(`${label}: "${k}" is not in the keyword list.`);
     } else if (!present.has(key)) {
       issues.push(`${label}: claimed keyword "${k}" does not appear in the title or summary.`);
@@ -62,7 +68,7 @@ for (const s of scored) {
     const key = raw.toLowerCase().trim();
     if (!key) {
       issues.push(`${label}: a dropped_keywords entry names no keyword.`);
-    } else if (!(key in KEYWORD_WEIGHTS)) {
+    } else if (!(key in weights)) {
       issues.push(`${label}: dropped keyword "${raw}" is not in the keyword list.`);
     } else if (!present.has(key)) {
       issues.push(`${label}: dropped keyword "${raw}" does not appear in the title or summary.`);
@@ -98,7 +104,7 @@ for (const s of scored) {
     );
   }
 
-  const expected = scoreFor(keywords);
+  const expected = scoreFor(keywords, weights);
   if (s.score !== expected) {
     issues.push(`${label}: score ${s.score} does not match the sum of its matched keyword weights (${expected}).`);
   }

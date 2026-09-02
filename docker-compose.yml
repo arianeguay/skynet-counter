@@ -18,6 +18,7 @@ services:
     environment:
       SKYNET_DB: /data/skynet.db
       PIPELINE_INTERVAL: ${PIPELINE_INTERVAL:-3600}
+      SKYNET_DOMAIN: ${SKYNET_DOMAIN:-cybersecurite}
     volumes:
       - skynet-data:/data
       # The provider spawns `claude`, which authenticates from the host session.

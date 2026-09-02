@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { DOMAINS } from '@/lib/domains';
 
 const SCRIPT = new URL('../../.studio/scripts/fetch-feed.ts', import.meta.url).pathname;
 
@@ -98,8 +99,8 @@ test('the feed summary is emitted without reading the linked page', async () => 
   }
 });
 
-test('every feed the input declares carries a source and a url', () => {
-  const input = readFileSync('.studio/inputs/default.input.yaml', 'utf8');
+test.each(DOMAINS)('every feed $slug declares carries a source and a url', ({ slug }) => {
+  const input = readFileSync(`.studio/inputs/${slug}.input.yaml`, 'utf8');
   const declared = [...input.matchAll(/^ {2}- source: (.+)$/gm)].map((m) => m[1]!);
   const paired = [...input.matchAll(/^ {2}- source: (.+)\n {4}url: (\S+)$/gm)];
   expect(paired.length).toBe(declared.length);

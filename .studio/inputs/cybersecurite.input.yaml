@@ -2,6 +2,12 @@
 # exists to carry this list, which the `fetch` map stage fans out over. Adding a
 # feed is two lines here and nothing else — the sub-pipeline reads `source` and
 # `url` off the item.
+#
+# One input file per domain, named for its slug. The rest of a domain's config —
+# keyword weights, scoring guidance, divisor — lives in
+# `src/lib/domains/<slug>.ts`, because only the feed list has to be reachable from
+# YAML: Studio fans the map stage out over it and cannot read TypeScript. The
+# sweep is told which domain it is running by `SKYNET_DOMAIN`, not by this file.
 run: scheduled
 
 feeds:

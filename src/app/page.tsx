@@ -2,11 +2,12 @@ import { CounterHero } from '@/components/CounterHero';
 import { ArticleLog } from '@/components/ArticleLog';
 import { FeedAlert } from '@/components/FeedAlert';
 import { readSnapshot } from '@/lib/db';
+import { DEFAULT_DOMAIN } from '@/lib/domains';
 
 export const dynamic = 'force-dynamic';
 
 export default function Home() {
-  const { counter, updatedAt, articles, feedErrors } = readSnapshot();
+  const { counter, updatedAt, articles, feedErrors } = readSnapshot(DEFAULT_DOMAIN);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-16">

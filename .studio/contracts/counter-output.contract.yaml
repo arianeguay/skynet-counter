@@ -2,11 +2,14 @@ name: counter-output
 version: 1
 schema:
   required_fields:
+    - domain
     - counter
     - updatedAt
     - articles
     - feedErrors
   fields:
+    domain:
+      type: string
     counter:
       type: number
     updatedAt:

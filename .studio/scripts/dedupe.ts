@@ -1,6 +1,7 @@
 import { readContext, emit, hydrateSummaries, type RawArticle } from './rss.ts';
 import { openDb, SWEEP_RETENTION_DAYS, UNREADABLE_AFTER_ATTEMPTS } from '../../src/lib/db.ts';
 import { matchedKeywords } from '../../src/lib/keywords.ts';
+import { currentDomain } from '../../src/lib/domains/index.ts';
 
 const HISTORY_WINDOW = 100;
 const MAX_PER_RUN = 25;
@@ -46,19 +47,26 @@ const ctx = await readContext<{
 }>();
 const fetched = (ctx.previous_outputs?.fetch?.outputs ?? []).flatMap((o) => o.articles ?? []);
 
+// Every read and write below is scoped to this domain: a URL another domain has
+// already scored must still be offered here, and its counter must not be moved by
+// an article this one pulled (STU-1213).
+const domain = currentDomain();
+
 const db = openDb();
 const knownUrls = new Set(
   db
-    .query<{ url: string }, []>('SELECT url FROM articles WHERE score IS NOT NULL')
-    .all()
+    .query<{ url: string }, [string]>(
+      'SELECT url FROM articles WHERE domain = ? AND score IS NOT NULL'
+    )
+    .all(domain.slug)
     .map((r) => r.url)
 );
 const knownTitles = new Set(
   db
-    .query<{ title: string }, [number]>(
-      'SELECT title FROM articles WHERE score IS NOT NULL ORDER BY scored_at DESC LIMIT ?'
+    .query<{ title: string }, [string, number]>(
+      'SELECT title FROM articles WHERE domain = ? AND score IS NOT NULL ORDER BY scored_at DESC LIMIT ?'
     )
-    .all(HISTORY_WINDOW)
+    .all(domain.slug, HISTORY_WINDOW)
     .map((r) => normalize(r.title))
 );
 
@@ -72,11 +80,11 @@ const knownTitles = new Set(
 const stranded = db
   .query<
     { url: string; title: string; source: string; published_at: string; summary: string },
-    [number]
+    [string, number]
   >(
-    'SELECT url, title, source, published_at, summary FROM articles WHERE score IS NULL ORDER BY rowid LIMIT ?'
+    'SELECT url, title, source, published_at, summary FROM articles WHERE domain = ? AND score IS NULL ORDER BY rowid LIMIT ?'
   )
-  .all(MAX_PER_RUN)
+  .all(domain.slug, MAX_PER_RUN)
   .map<RawArticle>((r) => ({
     title: r.title,
     url: r.url,
@@ -86,7 +94,7 @@ const stranded = db
   }));
 
 const insert = db.prepare(
-  'INSERT OR IGNORE INTO articles (url, title, source, published_at, summary) VALUES (?, ?, ?, ?, ?)'
+  'INSERT OR IGNORE INTO articles (domain, url, title, source, published_at, summary) VALUES (?, ?, ?, ?, ?, ?)'
 );
 
 // A stranded row whose feed item has *not* rolled off yet is fetched again this run;
@@ -124,8 +132,10 @@ const added = shareBySource(fresh, Math.max(0, MAX_PER_RUN - stranded.length));
 // off — and nothing ever said so (STU-1271).
 const attempts = new Map(
   db
-    .query<{ url: string; attempts: number }, []>('SELECT url, attempts FROM unread_pages')
-    .all()
+    .query<{ url: string; attempts: number }, [string]>(
+      'SELECT url, attempts FROM unread_pages WHERE domain = ?'
+    )
+    .all(domain.slug)
     .map((r) => [r.url, r.attempts] as const)
 );
 const unreadable = added.filter((a) => (attempts.get(a.url) ?? 0) >= UNREADABLE_AFTER_ATTEMPTS);
@@ -161,33 +171,42 @@ const pagesUnreadable = countBySource(unreadable);
 // field, so a batch cannot be approved by trusting it.
 const articles = [...stranded, ...hydrated].map((a) => ({
   ...a,
-  candidate_keywords: matchedKeywords(`${a.title} ${a.summary}`),
+  candidate_keywords: matchedKeywords(`${a.title} ${a.summary}`, domain.keywords),
 }));
 
 const noteUnread = db.prepare(
-  `INSERT INTO unread_pages (url, source, attempts, first_at, last_at) VALUES (?, ?, 1, ?, ?)
-   ON CONFLICT(url) DO UPDATE SET attempts = unread_pages.attempts + 1, last_at = excluded.last_at`
+  `INSERT INTO unread_pages (domain, url, source, attempts, first_at, last_at) VALUES (?, ?, ?, 1, ?, ?)
+   ON CONFLICT(domain, url) DO UPDATE SET attempts = unread_pages.attempts + 1, last_at = excluded.last_at`
 );
-const forgetUnread = db.prepare('DELETE FROM unread_pages WHERE url = ?');
+const forgetUnread = db.prepare('DELETE FROM unread_pages WHERE domain = ? AND url = ?');
 // A page that has not been offered for the whole retention window has rolled off
 // its feed, so its row can never be cleared by a success and would sit forever.
-const pruneUnread = db.prepare('DELETE FROM unread_pages WHERE last_at < ?');
+const pruneUnread = db.prepare('DELETE FROM unread_pages WHERE domain = ? AND last_at < ?');
 
 // The hydrated summary is what gets stored, so a row re-offered from the backlog
 // carries its page text and needs no second fetch.
 const now = new Date().toISOString();
 db.transaction(() => {
   for (const a of hydrated) {
-    insert.run(a.url, a.title, a.source, a.publishedAt, a.summary);
+    insert.run(domain.slug, a.url, a.title, a.source, a.publishedAt, a.summary);
     // It answered this time, so the run of refusals ends here.
-    forgetUnread.run(a.url);
+    forgetUnread.run(domain.slug, a.url);
   }
-  for (const a of unread) noteUnread.run(a.url, a.source, now, now);
-  pruneUnread.run(new Date(Date.parse(now) - SWEEP_RETENTION_DAYS * 864e5).toISOString());
+  for (const a of unread) noteUnread.run(domain.slug, a.url, a.source, now, now);
+  pruneUnread.run(domain.slug, new Date(Date.parse(now) - SWEEP_RETENTION_DAYS * 864e5).toISOString());
 })();
 db.close();
 
+// The weight table and the domain's judgement notes ride in the output rather
+// than in the scorer's prompt. The prompt is one static file shared by every
+// domain and cannot hold four tables; carrying a per-domain copy there would be
+// the same hand-maintained duplicate that already had to be kept in step, times
+// four. The validator still recomputes from the domain's own table and never
+// reads these fields, so a batch cannot be approved by trusting them.
 emit({
+  domain: domain.slug,
+  keyword_weights: domain.keywords,
+  domain_guidance: domain.guidance,
   new_count: articles.length,
   seen_count: fetched.length,
   stranded_count: stranded.length,

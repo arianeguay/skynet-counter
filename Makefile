@@ -1,6 +1,10 @@
 -include .env
 
 DEPLOY_PATH ?= skynet-counter
+# Which domain `run-pipeline` sweeps. The container's own loop reads it from the
+# compose environment; an ad-hoc sweep has to name it, since the input file and
+# the rows it writes are both keyed off it.
+DOMAIN ?= cybersecurite
 
 .PHONY: deploy run-pipeline
 
@@ -20,4 +24,4 @@ deploy:
 # STUDIO_NODE_BIN is exported by run-loop.sh, not by the image, so exec sets it.
 run-pipeline:
 	$(require-host)
-	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_PATH) && docker compose exec -T pipeline sh -c '\''STUDIO_NODE_BIN=$$(command -v bun) studio run skynet-counter --input-file .studio/inputs/default.input.yaml'\'''
+	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_PATH) && docker compose exec -T pipeline sh -c '\''STUDIO_NODE_BIN=$$(command -v bun) SKYNET_DOMAIN=$(DOMAIN) studio run skynet-counter --input-file .studio/inputs/$(DOMAIN).input.yaml'\'''
