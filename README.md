@@ -213,6 +213,29 @@ The page renders a `/// FEED FAULT` panel under the counter for any source whose
 while a genuinely dead feed does not. Every current error reaches the API regardless
 of age.
 
+`GET /api/skynet/summary` — the same counter without the payload around it:
+
+```json
+{ "counter": 23.4, "updatedAt": "2026-08-31T18:00:00.000Z", "status": "BACKGROUND CHATTER" }
+```
+
+For a caller that draws the number and nothing else. `/api/skynet` reads 40 articles
+and parses each one's keyword JSON to answer, which is a lot of wire for a widget
+polling on a timer. `status` is the band the site prints — served rather than
+computed by the caller, so a second surface cannot drift from the thresholds in
+`counter.ts`. This is the only route that sets `access-control-allow-origin`, because
+a desktop widget fetches from a `file://` document.
+
+## Desktop widget
+
+[widgets/ubersicht/](widgets/ubersicht/) is a Mac desktop widget — the gauge, the
+number and the band on the wallpaper layer, polling `/api/skynet/summary` every 15
+minutes. It needs [Übersicht](https://tracesof.net/uebersicht/) (`brew install --cask
+ubersicht`) and no Xcode, no signing and no Apple account;
+[its README](widgets/ubersicht/README.md) has the install and how to move it.
+
+`bun test tests/widgets/` covers it without Übersicht running.
+
 ## Keyword weights
 
 Defined once in [src/lib/keywords.ts](src/lib/keywords.ts) and consumed by both the

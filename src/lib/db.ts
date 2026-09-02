@@ -107,3 +107,22 @@ export function readSnapshot(limit = 40): CounterSnapshot {
     db.close();
   }
 }
+
+// The counter row on its own. `readSnapshot` is the wrong shape for a caller
+// that wants the number: it reads 40 articles, parses each one's keyword JSON
+// and queries `feed_health` to answer it. The desktop widget polls every 15
+// minutes and draws two fields, so it gets its own query.
+export function readCounter(): Pick<CounterSnapshot, 'counter' | 'updatedAt'> {
+  const db = openDb();
+  try {
+    const counter = db
+      .query<{ value: number; updated_at: string }, []>('SELECT value, updated_at FROM counter WHERE id = 1')
+      .get();
+    return {
+      counter: counter?.value ?? 0,
+      updatedAt: counter?.updated_at ?? new Date(0).toISOString(),
+    };
+  } finally {
+    db.close();
+  }
+}

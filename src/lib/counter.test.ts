@@ -1,5 +1,14 @@
 import { expect, test } from 'bun:test';
-import { BASE, DIVISOR, HALF_LIFE_DAYS, HORIZON_DAYS, counterFrom, decayedSignal, steadySignal } from '@/lib/counter';
+import {
+  BASE,
+  DIVISOR,
+  HALF_LIFE_DAYS,
+  HORIZON_DAYS,
+  counterFrom,
+  decayedSignal,
+  statusLine,
+  steadySignal,
+} from '@/lib/counter';
 
 const NOW = Date.parse('2026-09-01T00:00:00.000Z');
 const agedDays = (days: number, score: number) => ({
@@ -74,4 +83,18 @@ test('the calibrated divisor keeps silence, an ordinary week and a crisis on the
 // constant: the cutoff, not the half-life, decides what an article is worth.
 test('the horizon clips less than a tenth of the decay weight', () => {
   expect(0.5 ** (HORIZON_DAYS / HALF_LIFE_DAYS)).toBeLessThan(0.1);
+});
+
+// Each band is inclusive at its lower edge, and the floor the counter returns to
+// after silence — BASE, 12 — has to land in NOMINAL rather than one band up.
+test('the bands are inclusive at their lower edge', () => {
+  expect(statusLine(0)).toBe('NOMINAL');
+  expect(statusLine(BASE)).toBe('NOMINAL');
+  expect(statusLine(17.9)).toBe('NOMINAL');
+  expect(statusLine(18)).toBe('BACKGROUND CHATTER');
+  expect(statusLine(34.9)).toBe('BACKGROUND CHATTER');
+  expect(statusLine(35)).toBe('ELEVATED ACTIVITY');
+  expect(statusLine(59.9)).toBe('ELEVATED ACTIVITY');
+  expect(statusLine(60)).toBe('CONTAINMENT DEGRADED');
+  expect(statusLine(100)).toBe('CONTAINMENT DEGRADED');
 });

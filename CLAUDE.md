@@ -88,7 +88,12 @@ point at the bun binary or every one of them dies on that import. The same reaso
 ### Where a test file goes
 
 `src` tests sit next to the code they cover; **script tests live in
-[tests/studio/](tests/studio/), not beside the script**. A component test renders with
+[tests/studio/](tests/studio/), not beside the script**, and **widget tests live in
+[tests/widgets/](tests/widgets/)** — Übersicht loads every `.jsx` in its widget
+directory as a widget, so a test beside `skynet-counter.jsx` installs as a second,
+broken one. That test is a `.jsx` rather than a `.tsx` on purpose: `tsconfig.json`
+sets `allowJs: false` and includes only `.ts`/`.tsx`, so a typed test importing the
+untyped widget fails `bun run typecheck`. A component test renders with
 `renderToStaticMarkup` from `react-dom/server` and asserts on the markup — there is no
 DOM testing library here, and a presentational server component needs none. Bun's test discovery never
 descends into dot-directories, so a `.test.ts` under `.studio/` is skipped in silence —
@@ -158,6 +163,25 @@ Add state here the same way — a new table, never a column on an old one.
 The file is gitignored. The history that matters — the one behind the live counter —
 exists only on the host serving the site, never in a checkout.
 
+## The desktop widget
+
+[widgets/ubersicht/skynet-counter.jsx](widgets/ubersicht/skynet-counter.jsx) is a
+single file loaded straight off disk by Übersicht — there is no bundler, so it
+cannot import anything from `src/`. That constraint decides what it may copy.
+
+The gauge geometry is copied out of [Gauge.tsx](src/components/Gauge.tsx), and that
+is fine: it is a dial drawing, and a drift shows up as a wrong-looking needle rather
+than a wrong number. Thresholds and scores are not fine, which is why
+`/api/skynet/summary` serves `status` instead of letting the widget recompute it —
+`statusLine` lives in [counter.ts](src/lib/counter.ts) rather than in `CounterHero`
+so a server route can reach it, since that component is `'use client'`.
+
+`/api/skynet/summary` is the only route that sets `access-control-allow-origin`: a
+widget fetches from a `file://` document and sends `Origin: null`. It exists at all
+because `readSnapshot()` reads 40 articles and parses each one's keyword JSON, which
+is the wrong shape for a caller polling on a timer for one number — hence
+`readCounter()` beside it in [db.ts](src/lib/db.ts).
+
 ## Where a Task Runs
 
 An issue is `claude:web` when it can be **both changed and verified** in a Claude Code
@@ -172,6 +196,9 @@ proof, not the edit.
   `SKYNET_DB=/tmp/x.db`
 - feed parsing (`.studio/scripts/rss.ts`) against saved XML
 - the Next.js page, the components and `/api/skynet`
+- the desktop widget — `tests/widgets/` renders it with `renderToStaticMarkup` and
+  asserts on the markup, so the bands, the needle geometry and the failure paths are
+  provable without a Mac or Übersicht anywhere near it
 
 **`claude:local` — anything whose proof is a real `studio run`:**
 

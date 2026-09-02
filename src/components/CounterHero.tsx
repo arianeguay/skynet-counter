@@ -1,15 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { statusLine } from '@/lib/counter';
 import { Gauge } from './Gauge';
 import { GlitchNumber } from './GlitchNumber';
-
-function statusLine(counter: number): string {
-  if (counter >= 60) return 'CONTAINMENT DEGRADED';
-  if (counter >= 35) return 'ELEVATED ACTIVITY';
-  if (counter >= 18) return 'BACKGROUND CHATTER';
-  return 'NOMINAL';
-}
 
 export function CounterHero({
   counter,
