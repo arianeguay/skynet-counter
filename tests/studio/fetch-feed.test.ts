@@ -21,12 +21,13 @@ const BOILERPLATE = 'Article URL: http://example.com Comments URL: https://news.
 // `postType` overrides what it answers with, to stand in for a link that is
 // not a web page at all. `secondPost` adds a second item, so a batch can fail
 // its links in part rather than wholesale.
-function serveFeed(post?: string, postType = 'text/html', secondPost?: string) {
+function serveFeed(post?: string, postType = 'text/html', secondPost?: string, onPost?: () => void) {
   return Bun.serve({
     port: 0,
     fetch(req) {
       const url = new URL(req.url);
       if (url.pathname === '/post') {
+        onPost?.();
         return new Response(
           '<html><head><style>.n{color:red}</style></head><body>' +
             '<nav>Ransomware</nav>' +
@@ -51,7 +52,6 @@ function serveFeed(post?: string, postType = 'text/html', secondPost?: string) {
 
 interface FetchOutput {
   error: string | null;
-  hydration_failures: number;
   articles: { summary: string }[];
 }
 
@@ -81,47 +81,21 @@ test('reads source and url out of the engine dump, quoted or not', async () => {
   expect(result.error).not.toBeNull();
 });
 
-test('the linked page replaces the boilerplate summary', async () => {
-  const summary = await summaryFor();
-  expect(summary).toContain('exploited 87%');
-  // Chrome is stripped, so a nav item cannot lend the page a keyword it never used.
-  expect(summary).not.toContain('Ransomware');
-  expect(summary).not.toContain('color:red');
-});
-
-// Hydration is best-effort: a dead link must cost the article its page text, not
-// its row. Failing back to the feed summary is exactly today's behaviour.
-test('a linked page that does not answer leaves the feed summary in place', async () => {
-  expect(await summaryFor('http://127.0.0.1:1/post')).toBe(BOILERPLATE);
-});
-
-// Falling back is silent by design, and silence here is the failure mode: the
-// batch is scored on boilerplate and the feed still reports a clean fetch.
-test('a feed whose links all fail reports the same way a dead feed does', async () => {
-  const { output } = await fetchFrom('http://127.0.0.1:1/post');
-  expect(output.hydration_failures).toBe(1);
-  expect(output.error).toBe('Hacker News loaded 0 of 1 linked pages');
-});
-
-test('a batch that loses only some of its pages reports the count on stderr', async () => {
-  const { output, err } = await fetchFrom(undefined, undefined, 'http://127.0.0.1:1/post');
-  expect(output.hydration_failures).toBe(1);
-  expect(output.error).toBeNull();
-  expect(err).toContain('Hacker News loaded 1 of 2 linked pages');
-});
-
-test('a feed whose pages all load reports no degradation', async () => {
-  const { output, err } = await fetchFrom();
-  expect(output.hydration_failures).toBe(0);
-  expect(output.error).toBeNull();
-  expect(err).toBe('');
-});
-
-// HN links PDFs regularly. The body stays the same readable page, so the
-// content-type check is the only thing that can keep it out of the summary —
-// drop that check and this is the test that notices.
-test('a linked page that is not HTML leaves the feed summary in place', async () => {
-  expect(await summaryFor(undefined, 'application/pdf')).toBe(BOILERPLATE);
+// The linked page is `dedupe`'s job now, so this stage must hand on the feed's
+// own summary untouched — and must not have paid a request for the page. Both
+// hydration coverage and the request-count proof live in dedupe.test.ts.
+test('the feed summary is emitted without reading the linked page', async () => {
+  let postRequests = 0;
+  const feed = serveFeed(undefined, undefined, undefined, () => postRequests++);
+  try {
+    const { out, err } = await runFetch(`source: Hacker News\nurl: ${feed.url.origin}/feed\n`);
+    const output = JSON.parse(out) as FetchOutput;
+    expect(output.articles[0]?.summary).toBe(BOILERPLATE);
+    expect(postRequests).toBe(0);
+    expect(err).toBe('');
+  } finally {
+    feed.stop(true);
+  }
 });
 
 test('every feed the input declares carries a source and a url', () => {

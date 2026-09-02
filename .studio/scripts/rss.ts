@@ -89,7 +89,8 @@ async function pageText(url: string): Promise<string> {
 // that scores as well off its summary as off the linked page — the gain ranged
 // from 3.3x the score sum on the mildest feed to a structural zero becoming 5 of
 // 20 on hnrss, whose `<description>` is the same "Article URL / Comments URL /
-// Points" boilerplate every time. The cost is one request per item per sweep.
+// Points" boilerplate every time. `dedupe` is the caller, so the cost is one
+// request per article that will actually be scored, not per item in the window.
 // Failure keeps the feed's own summary, so a feed is never worse off for it.
 // It is worse off than it looks, though: falling back leaves the article scored
 // on boilerplate, which is the structural zero hydration exists to remove — so

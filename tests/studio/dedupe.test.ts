@@ -16,7 +16,7 @@ interface Fetched {
 
 const ARTICLE: Fetched = {
   title: 'Vulnerability giving attackers full control of Macs is under active exploitation',
-  url: 'https://example.com/macs-exploit',
+  url: 'http://127.0.0.1:1/macs-exploit',
   source: 'arstechnica',
   publishedAt: '2026-09-01T00:00:00.000Z',
   summary: 'Screen-sharing bug lets remote hackers log in without a password.',
@@ -29,16 +29,21 @@ async function runDedupe(dbPath: string, articles: Fetched[] = [ARTICLE]) {
       JSON.stringify({ previous_outputs: { fetch: { outputs: [{ articles }] } } })
     ),
     stdout: 'pipe',
-    stderr: 'inherit',
+    stderr: 'pipe',
   });
   const out = await new Response(proc.stdout).text();
+  const err = await new Response(proc.stderr).text();
   expect(await proc.exited).toBe(0);
-  return JSON.parse(out) as {
-    new_count: number;
-    seen_count: number;
-    stranded_count: number;
-    articles: (Fetched & { candidate_keywords: string[] })[];
-  };
+  return Object.assign(
+    JSON.parse(out) as {
+      new_count: number;
+      seen_count: number;
+      stranded_count: number;
+      hydration_failures: number;
+      articles: (Fetched & { candidate_keywords: string[] })[];
+    },
+    { stderr: err }
+  );
 }
 
 function withDb(body: (dbPath: string) => Promise<void>) {
@@ -74,7 +79,7 @@ function batch(source: string, count: number, startedAt: string): Fetched[] {
   const start = Date.parse(startedAt);
   return Array.from({ length: count }, (_, i) => ({
     title: `${source} story ${i}`,
-    url: `https://example.com/${source.replace(/\W+/g, '-').toLowerCase()}/${i}`,
+    url: `http://127.0.0.1:1/${source.replace(/\W+/g, '-').toLowerCase()}/${i}`,
     source,
     publishedAt: new Date(start - i * 60_000).toISOString(),
     summary: `${source} summary ${i}`,
@@ -137,7 +142,7 @@ test(
     const backlog = Array.from({ length: 30 }, (_, i) => ({
       ...ARTICLE,
       title: `Stranded article ${i}`,
-      url: `https://example.com/stranded-${i}`,
+      url: `http://127.0.0.1:1/stranded-${i}`,
     }));
     strand(dbPath, backlog);
 
@@ -191,7 +196,7 @@ test(
       {
         ...ARTICLE,
         title: 'An AI model quietly rewrote its own weights',
-        url: 'https://example.com/self-improving',
+        url: 'http://127.0.0.1:1/self-improving',
         summary: 'Researchers describe a self-improving system that resisted a shutdown.',
       },
     ]);
@@ -216,5 +221,139 @@ test(
     ]);
 
     expect(out.articles[0]?.candidate_keywords).toEqual([]);
+  })
+);
+
+
+// Hydration moved into this stage (STU-1206), so a linked page is now a real
+// request made here. The stub counts them, because "an already-scored article
+// costs no request" is the whole point of the move.
+function servePages() {
+  let requests = 0;
+  const server = Bun.serve({
+    port: 0,
+    fetch(req) {
+      requests++;
+      const path = new URL(req.url).pathname;
+      if (path === '/dead') return new Response('gone', { status: 404 });
+      if (path === '/pdf') return new Response('%PDF-1.4', { headers: { 'content-type': 'application/pdf' } });
+      return new Response(
+        '<html><head><style>.n{color:red}</style></head><body><nav>Ransomware</nav>' +
+          '<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p></body></html>',
+        { headers: { 'content-type': 'text/html' } }
+      );
+    },
+  });
+  return { origin: server.url.origin, stop: () => server.stop(true), count: () => requests };
+}
+
+function withPages(body: (pages: ReturnType<typeof servePages>, dbPath: string) => Promise<void>) {
+  return withDb(async (dbPath) => {
+    const pages = servePages();
+    try {
+      await body(pages, dbPath);
+    } finally {
+      pages.stop();
+    }
+  });
+}
+
+const linked = (pages: { origin: string }, path: string): Fetched => ({
+  ...ARTICLE,
+  url: `${pages.origin}${path}`,
+  summary: 'Article URL: http://example.com Comments URL: https://news.ycombinator.com/item?id=1',
+});
+
+test(
+  'a fresh article is scored against its linked page, not its feed summary',
+  withPages(async (pages, dbPath) => {
+    const out = await runDedupe(dbPath, [linked(pages, '/post')]);
+
+    expect(out.articles[0]?.summary).toContain('exploited 87%');
+    // Chrome is stripped, so a nav item cannot lend the page a keyword it never used.
+    expect(out.articles[0]?.summary).not.toContain('Ransomware');
+    expect(out.articles[0]?.summary).not.toContain('color:red');
+    expect(out.hydration_failures).toBe(0);
+  })
+);
+
+// The whole reason hydration moved here: `fetch` pulls ~110 items a sweep and a
+// publisher holds an item for days, so hydrating before the seen-index filter
+// re-fetched the same page every hour for as long as it stayed in the window.
+test(
+  'an article already scored costs no page request',
+  withPages(async (pages, dbPath) => {
+    const article = linked(pages, '/post');
+    await runDedupe(dbPath, [article]);
+    expect(pages.count()).toBe(1);
+
+    const db = new Database(dbPath);
+    db.query('UPDATE articles SET score = 5, scored_at = ? WHERE url = ?').run(
+      new Date().toISOString(),
+      article.url
+    );
+    db.close();
+
+    const second = await runDedupe(dbPath, [article]);
+    expect(second.new_count).toBe(0);
+    expect(pages.count()).toBe(1);
+  })
+);
+
+// The stored summary is the hydrated one, so a row re-offered from the backlog
+// is scored on its page text without paying a second request.
+test(
+  'a stranded row keeps its page text and is not re-fetched',
+  withPages(async (pages, dbPath) => {
+    const article = linked(pages, '/post');
+    await runDedupe(dbPath, [article]);
+    expect(pages.count()).toBe(1);
+
+    const second = await runDedupe(dbPath, []);
+    expect(second.stranded_count).toBe(1);
+    expect(second.articles[0]?.summary).toContain('exploited 87%');
+    expect(pages.count()).toBe(1);
+  })
+);
+
+// Hydration is best-effort: a dead link costs the article its page text, not its
+// row. Falling back is counted rather than swallowed, because a boilerplate
+// summary is the structural zero hydration exists to remove.
+test(
+  'a linked page that does not answer leaves the feed summary in place',
+  withPages(async (pages, dbPath) => {
+    const article = linked(pages, '/dead');
+    const out = await runDedupe(dbPath, [article]);
+
+    expect(out.articles[0]?.summary).toBe(article.summary);
+    expect(out.hydration_failures).toBe(1);
+    expect(out.stderr).toContain('dedupe loaded 0 of 1 linked pages');
+  })
+);
+
+// HN links PDFs regularly. The body stays the same readable page, so the
+// content-type check is the only thing that can keep it out of the summary —
+// drop that check and this is the test that notices.
+test(
+  'a linked page that is not HTML leaves the feed summary in place',
+  withPages(async (pages, dbPath) => {
+    const article = linked(pages, '/pdf');
+    const out = await runDedupe(dbPath, [article]);
+
+    expect(out.articles[0]?.summary).toBe(article.summary);
+    expect(out.hydration_failures).toBe(1);
+  })
+);
+
+test(
+  'a batch that loses only some of its pages reports the count',
+  withPages(async (pages, dbPath) => {
+    const out = await runDedupe(dbPath, [
+      { ...linked(pages, '/post'), title: 'A live page' },
+      { ...linked(pages, '/dead'), title: 'A dead page' },
+    ]);
+
+    expect(out.hydration_failures).toBe(1);
+    expect(out.stderr).toContain('dedupe loaded 1 of 2 linked pages');
   })
 );
