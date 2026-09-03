@@ -124,9 +124,16 @@ Studio has no scheduler. Two ways to give it one:
 docker compose up -d
 ```
 
-The `pipeline` service loops `studio run` every `PIPELINE_INTERVAL` seconds (default
-3600), sharing the `skynet-data` volume with `web`. A failed sweep logs and waits for
-the next tick rather than taking the container down.
+The `pipeline` service is the scheduler — there is no cron and no systemd timer. It
+sweeps each domain on its own period, set by `SKYNET_SCHEDULE` as whitespace-separated
+`slug:seconds` pairs (default `cybersecurite:3600`), sharing the `skynet-data` volume
+with `web`. A failed sweep logs and waits for that domain's next tick rather than
+taking the container down, and a hung one is cut off at `SWEEP_TIMEOUT` (default 1800s)
+so it cannot hold up another domain's turn.
+
+Each sweep pays for its own scoring stage, so the period is per domain rather than
+uniform: a feed set that publishes one article a week does not need the cadence that a
+security newswire does.
 
 It bind-mounts `~/.claude` so the containerised `claude` inherits the host login —
 there is no headless way to authenticate it otherwise. Log in on the host first
