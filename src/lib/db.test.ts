@@ -3,8 +3,8 @@ import { afterEach, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDb, readCounter, readFeedErrors, readHostOutage, readSnapshot } from '@/lib/db';
-import { DEFAULT_DOMAIN, currentDomain, domainBySlug } from '@/lib/domains';
+import { openDb, readBalance, readCounter, readFeedErrors, readHostOutage, readSnapshot } from '@/lib/db';
+import { DEFAULT_DOMAIN, DOMAINS, currentDomain, domainBySlug } from '@/lib/domains';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -380,4 +380,31 @@ test('an unknown SKYNET_DOMAIN fails loudly rather than falling back', () => {
 test('an unset SKYNET_DOMAIN is the default domain', () => {
   expect(currentDomain().slug).toBe(DEFAULT_DOMAIN);
   expect(domainBySlug(DEFAULT_DOMAIN)).toBeDefined();
+});
+
+// STU-1280: the balance reads the whole registry from real rows, scoped per
+// domain exactly like every other read here — a burst in one domain must not
+// move another's deviation.
+test('the balance reads every registered domain, scoped to its own articles', () => {
+  tempDbPath();
+  const risk = DOMAINS.find((d) => d.polarity === 'risk')!;
+  const progress = DOMAINS.find((d) => d.polarity === 'progress')!;
+
+  const db = openDb();
+  const now = new Date().toISOString();
+  db.query(
+    'INSERT INTO articles (domain, url, title, source, published_at, summary, score, matched_keywords, evidence, scored_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(risk.slug, 'https://example.com/risk-burst', 'A burst today', 'A Feed', now, '', 80, '[]', '', now);
+  db.close();
+
+  const balance = readBalance();
+  expect(balance.map((d) => d.slug).sort()).toEqual(DOMAINS.map((d) => d.slug).sort());
+
+  const riskDeviation = balance.find((d) => d.slug === risk.slug)!;
+  expect(riskDeviation.polarity).toBe('risk');
+  expect(riskDeviation.deviation).toBeGreaterThan(0);
+
+  // Nothing was seeded for it, so its history is flat at BASE — no burst to see.
+  const progressDeviation = balance.find((d) => d.slug === progress.slug)!;
+  expect(progressDeviation.deviation).toBe(0);
 });

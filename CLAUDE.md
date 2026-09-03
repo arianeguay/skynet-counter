@@ -259,6 +259,55 @@ Reach for `getAnimations()[0].pause(); anim.currentTime = <ms>` when checking ei
 effect in a browser — a screenshot taken on a guessed delay lands past the window,
 paused-and-seeked does not.
 
+### The balance band, and the trap it exists to avoid
+
+Once domains point both ways, the site needs to say which side is winning — and the
+obvious way to answer that is wrong. Cybersecurity reads 41.4, environment reads
+17.0; that gap is mostly a statement about how many articles each feed set publishes
+per day, not about which domain is worse. Summing the two counters, or subtracting
+one from the other, would produce a number that moves confidently and describes
+nothing. This is the same error as bounding a resource by a proxy that swings
+fifty-fold — if the quantity is a comparison, the axis has to be one every term
+actually shares (STU-1280).
+
+The axis every domain shares is **itself**: how far today's counter sits from that
+domain's own recent normal. `counterHistory()` in [counter.ts](src/lib/counter.ts)
+recomputes what the counter genuinely read on each of the last `HISTORY_WINDOW_DAYS`
+(14) days, reusing the exact same formula rather than approximating it — no new
+table, no daily snapshot job, because `articles` and the pure formula already carry
+enough to reconstruct any past reading. `normalizedDeviation()` in
+[balance.ts](src/lib/balance.ts) then turns that trajectory into a z-score: `(today
+- mean) / spread`, clamped to `[-1, 1]`.
+
+**Why a z-score and not the raw gap from the mean.** `counterHistory` is `BASE +
+signal/divisor`. A divisor cuts both the deviation *and* the domain's own day-to-day
+spread by the same factor, so it cancels out of the ratio exactly — affine-invariant
+by construction, which `balance.test.ts` asserts directly (scaling and shifting a
+history leaves its deviation unchanged). A domain reading loud purely because its
+divisor is small cannot swing the balance more than a quiet domain having an equally
+unusual day; the two verification criteria the issue names — a small-divisor domain
+not dominating, and a domain at its own average contributing nothing — are both this
+one property.
+
+`MIN_SPREAD` floors the denominator so a domain that has barely moved does not spike
+off the smallest wobble, and `CLAMP_STD_DEVS` caps how far one domain's day can push
+its own side, so no single loud week runs away with the shared line.
+
+`balanceOf()` averages each side's clamped deviations and subtracts progress from
+risk — average, not sum, so a fourth domain on one side dilutes rather than doubles
+that side's pull. It returns `null`, not `0`, when either side has no domain: zero
+would silently claim "evenly matched" about a state with no such evidence.
+[`BalanceBand`](src/components/BalanceBand.tsx) renders nothing on `null`, the same
+"nothing to compare yet" behaviour `DomainNav` already has below two domains.
+
+The band reads the **whole registry** on every render, not the domain the page
+happens to be showing — `readBalance()` in `db.ts` queries every domain in `DOMAINS`
+and is called once in `[domaine]/page.tsx`, so `/frontend` and `/cybersecurite` print
+the identical verdict. It draws with `--color-blood`/`--color-verdant` directly
+rather than `--color-signal`, because it is the one place both polarities are shown
+at once — remapping it would make it agree with whichever domain's page it happened
+to render on, which is exactly the thing it exists to be independent of.
+
 ### Direction, and why it is the scorer's call
 
 A keyword names a thing going wrong, and an article can be about that thing being

@@ -2,8 +2,10 @@ import { expect, test } from 'bun:test';
 import {
   BASE,
   HALF_LIFE_DAYS,
+  HISTORY_WINDOW_DAYS,
   HORIZON_DAYS,
   counterFrom,
+  counterHistory,
   decayedSignal,
   normalizedSignal,
   statusLine,
@@ -177,4 +179,35 @@ test('the bands are inclusive at their lower edge', () => {
   expect(statusLine(59.9)).toBe('ELEVATED ACTIVITY');
   expect(statusLine(60)).toBe('CONTAINMENT DEGRADED');
   expect(statusLine(100)).toBe('CONTAINMENT DEGRADED');
+});
+
+// counterHistory reuses the same formula, sampled once per day, so it must agree
+// exactly with a direct call for "today" — it is not an approximation of the
+// counter's own math (STU-1280).
+test('the last point of a history is exactly what a direct call computes for today', () => {
+  const rows: Sourced[] = [{ score: 20, source: 'A Feed', published_at: new Date(NOW - 2 * 864e5).toISOString() }];
+  const history = counterHistory(rows, NOW, BASE, DIVISOR, 5);
+  const direct = counterAt(normalizedSignal(rows, NOW));
+  expect(history.at(-1)).toBe(direct);
+});
+
+test('a history spans windowDays + 1 points, oldest first', () => {
+  expect(counterHistory([], NOW, BASE, DIVISOR, 5)).toHaveLength(6);
+  expect(counterHistory([], NOW, BASE, DIVISOR, HISTORY_WINDOW_DAYS)).toHaveLength(HISTORY_WINDOW_DAYS + 1);
+});
+
+test('an empty article history reads BASE on every day', () => {
+  expect(counterHistory([], NOW, BASE, DIVISOR, 10)).toEqual(Array(11).fill(BASE));
+});
+
+// An article published after a given day must not count toward that day's
+// point — otherwise the trajectory reports today's news as though it were
+// always true, and a domain would never read as having been "normal" before an
+// article that just landed.
+test('a day’s point never sees an article published after it', () => {
+  const rows: Sourced[] = [{ score: 40, source: 'A Feed', published_at: new Date(NOW).toISOString() }];
+  const history = counterHistory(rows, NOW, BASE, DIVISOR, 3);
+  // Day -3, -2, -1 predate the article; only the last point (today) sees it.
+  expect(history.slice(0, 3)).toEqual([BASE, BASE, BASE]);
+  expect(history.at(-1)).toBeGreaterThan(BASE);
 });

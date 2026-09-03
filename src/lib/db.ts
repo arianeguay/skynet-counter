@@ -1,4 +1,7 @@
 import { Database } from 'bun:sqlite';
+import { BASE, HISTORY_WINDOW_DAYS, HORIZON_DAYS, counterHistory, type Sourced } from './counter';
+import { DOMAINS } from './domains';
+import { normalizedDeviation, type DomainDeviation } from './balance';
 
 // Read per call, not once at module load: capturing it at import time meant
 // whichever test file pulled this module in first decided the path for the whole
@@ -408,6 +411,28 @@ export function readSnapshot(domain: string, limit = 40): CounterSnapshot {
       feedErrors: readFeedErrors(db, domain),
       hostOutage: readHostOutage(db, domain),
     };
+  } finally {
+    db.close();
+  }
+}
+
+// Every domain's deviation from its own recent normal, read fresh on every page
+// render — the whole registry, not the domain that page happens to be showing
+// (STU-1280). One query per domain rather than one bulk query: the tables are
+// small and this runs once per page, not once per article.
+export function readBalance(): DomainDeviation[] {
+  const db = openDb();
+  try {
+    const since = new Date(Date.now() - (HORIZON_DAYS + HISTORY_WINDOW_DAYS) * 864e5).toISOString();
+    return DOMAINS.map((domain) => {
+      const rows = db
+        .query<Sourced, [string, string]>(
+          'SELECT score, source, published_at FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
+        )
+        .all(domain.slug, since);
+      const history = counterHistory(rows, Date.now(), BASE, domain.divisor);
+      return { slug: domain.slug, polarity: domain.polarity, deviation: normalizedDeviation(history) };
+    });
   } finally {
     db.close();
   }
