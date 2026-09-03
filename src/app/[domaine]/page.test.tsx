@@ -63,3 +63,28 @@ test('the page is titled and described by the domain it serves', async () => {
 test('the route is rendered per request, never prerendered', () => {
   expect(dynamic).toBe('force-dynamic');
 });
+
+// The accent is remapped on the wrapper, not passed down, so this is where a
+// progress domain stops looking like an alarm (STU-1279).
+test('a progress domain renders its own bands, question and accent', async () => {
+  seed('frontend', 'https://example.com/baseline', 41, 'Anchor positioning is newly available');
+
+  const markup = await render('frontend');
+
+  expect(markup).toContain('polarity-progress');
+  expect(markup).toContain('STEADY ADVANCE');
+  expect(markup).toContain('The Convergence');
+  expect(markup).not.toContain('The Singularity');
+  expect(markup).not.toContain('ELEVATED ACTIVITY');
+});
+
+// The risk domains must read exactly as they did before the mechanism existed.
+test('a risk domain keeps the Singularity question and no polarity class', async () => {
+  seed(DEFAULT_DOMAIN, 'https://example.com/risk', 41, 'A scored security story');
+
+  const markup = await render(DEFAULT_DOMAIN);
+
+  expect(markup).toContain('The Singularity');
+  expect(markup).toContain('ELEVATED ACTIVITY');
+  expect(markup).not.toContain('polarity-progress');
+});

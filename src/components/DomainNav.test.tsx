@@ -8,6 +8,8 @@ const domain = (slug: string, label: string): Domain => ({
   label,
   tagline: `what ${slug} counts`,
   keywords: {},
+  polarity: 'risk',
+  question: { prefix: 'How close are we to', subject: 'The Singularity' },
   divisor: 32,
   guidance: '',
 });

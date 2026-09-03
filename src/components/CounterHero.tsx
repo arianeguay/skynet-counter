@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { statusLine } from '@/lib/counter';
+import { statusLine, type Polarity } from '@/lib/counter';
 import { Gauge } from './Gauge';
 import { GlitchNumber } from './GlitchNumber';
 
@@ -11,18 +11,27 @@ export function CounterHero({
   scored,
   label,
   tagline,
+  polarity,
+  question,
 }: {
   counter: number;
   updatedAt: string;
   scored: number;
   label: string;
   tagline: string;
+  polarity: Polarity;
+  question: { prefix: string; subject: string };
 }) {
   const hero = useRef<HTMLElement>(null);
   const [pinned, setPinned] = useState(false);
   const [glitching, setGlitching] = useState(false);
   const stale = Date.parse(updatedAt) === 0;
-  const status = statusLine(counter);
+  const status = statusLine(counter, polarity);
+  // A risk counter tears; a progress one glows. Same trigger, same beat — only
+  // the fault reads differently, matching each effect's own animation length in
+  // globals.css so the class is not yanked mid-animation.
+  const effect = polarity === 'progress' ? 'glow' : 'glitch';
+  const effectDuration = effect === 'glow' ? 900 : 220;
   // Server and browser sit in different zones, so the local stamp can only be
   // computed after mount; until then the UTC string the server rendered stands.
   const [sweep, setSweep] = useState(`${updatedAt.slice(0, 19).replace('T', ' ')}Z`);
@@ -45,12 +54,12 @@ export function CounterHero({
         timer = setTimeout(() => {
           setGlitching(false);
           schedule();
-        }, 220);
+        }, effectDuration);
       }, 2500 + Math.random() * 6000);
     };
     schedule();
     return () => clearTimeout(timer);
-  }, []);
+  }, [effectDuration]);
 
   useEffect(() => {
     const node = hero.current;
@@ -80,13 +89,13 @@ export function CounterHero({
           <span className="truncate text-[10px] tracking-[0.3em] text-bone">
             {label.toUpperCase()}
           </span>
-          <GlitchNumber value={counter} glitching={glitching} variant="bar" />
-          <span className="truncate text-[10px] tracking-[0.2em] text-blood">{status}</span>
+          <GlitchNumber value={counter} glitching={glitching} effect={effect} variant="bar" />
+          <span className="truncate text-[10px] tracking-[0.2em] text-signal">{status}</span>
           <span className="ml-auto shrink-0 text-[10px] text-ash tabular-nums">{scored} SCORED</span>
         </div>
         <div className="h-px w-full bg-hairline">
           <div
-            className="h-px bg-blood transition-[width] duration-500"
+            className="h-px bg-signal transition-[width] duration-500"
             style={{ width: `${Math.min(100, Math.max(0, counter))}%` }}
           />
         </div>
@@ -97,15 +106,15 @@ export function CounterHero({
           SKYNET COUNTER <span className="text-hairline">/</span>{' '}
           <span className="text-bone">{label.toUpperCase()}</span>
         </p>
-        <p className="text-sm tracking-[0.25em] text-blood">
-          How close are we to{' '}
+        <p className="text-sm tracking-[0.25em] text-signal">
+          {question.prefix}{' '}
           {/* inline-block: a bare inline span ignores the animation's transform. */}
-          <span className={`inline-block ${glitching ? 'glitch' : ''}`}>The Singularity</span>?
+          <span className={`inline-block ${glitching ? effect : ''}`}>{question.subject}</span>?
         </p>
         <p className="max-w-md text-center text-xs text-ash">{tagline}</p>
         <Gauge value={counter} />
-        <GlitchNumber value={counter} glitching={glitching} />
-        <p className="text-sm tracking-[0.25em] text-blood">{status}</p>
+        <GlitchNumber value={counter} glitching={glitching} effect={effect} />
+        <p className="text-sm tracking-[0.25em] text-signal">{status}</p>
         <p className="text-xs text-ash">
           {stale ? 'NEVER RUN' : `LAST SWEEP ${sweep}`}
           <span className="mx-2 text-hairline">|</span>

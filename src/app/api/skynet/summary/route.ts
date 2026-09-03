@@ -1,6 +1,6 @@
 import { statusLine } from '@/lib/counter';
 import { readCounter } from '@/lib/db';
-import { DEFAULT_DOMAIN } from '@/lib/domains';
+import { DEFAULT_DOMAIN, domainBySlug } from '@/lib/domains';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +14,11 @@ export const dynamic = 'force-dynamic';
 //     same public number the site already renders to anyone.
 export function GET() {
   const { counter, updatedAt } = readCounter(DEFAULT_DOMAIN);
+  // The band is the domain's, not the risk one: a widget showing STALLED for a
+  // progress counter reading 8 is right, and NOMINAL would be nonsense.
+  const polarity = domainBySlug(DEFAULT_DOMAIN)?.polarity ?? 'risk';
   return Response.json(
-    { counter, updatedAt, status: statusLine(counter) },
+    { counter, updatedAt, status: statusLine(counter, polarity) },
     {
       headers: {
         'cache-control': 'no-store',

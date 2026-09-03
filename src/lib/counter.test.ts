@@ -139,6 +139,32 @@ test('the horizon clips less than a tenth of the decay weight', () => {
   expect(0.5 ** (HORIZON_DAYS / HALF_LIFE_DAYS)).toBeLessThan(0.1);
 });
 
+// A progress domain shares the thresholds and swaps the words: the cut points say
+// how loud a domain is, and only the wording says whether loud is good (STU-1279).
+test('the progress bands are inclusive at the same edges as the risk ones', () => {
+  expect(statusLine(0, 'progress')).toBe('STALLED');
+  expect(statusLine(17.9, 'progress')).toBe('STALLED');
+  expect(statusLine(18, 'progress')).toBe('SOME MOVEMENT');
+  expect(statusLine(34.9, 'progress')).toBe('SOME MOVEMENT');
+  expect(statusLine(35, 'progress')).toBe('STEADY ADVANCE');
+  expect(statusLine(59.9, 'progress')).toBe('STEADY ADVANCE');
+  expect(statusLine(60, 'progress')).toBe('GROUND GAINED');
+  expect(statusLine(100, 'progress')).toBe('GROUND GAINED');
+});
+
+// The two vocabularies must not overlap, or the band stops saying which kind of
+// counter it belongs to.
+test('no band label is shared between the two polarities', () => {
+  const words = (p: 'risk' | 'progress') => [0, 18, 35, 60].map((n) => statusLine(n, p));
+  expect(words('risk').filter((w) => words('progress').includes(w))).toEqual([]);
+});
+
+// Every existing caller passed one argument, and the risk domains must read exactly
+// as they did before.
+test('the default polarity is risk, so an unpolarised call is unchanged', () => {
+  for (const n of [0, 18, 35, 60, 100]) expect(statusLine(n)).toBe(statusLine(n, 'risk'));
+});
+
 // Each band is inclusive at its lower edge, and the floor the counter returns to
 // after silence — BASE, 12 — has to land in NOMINAL rather than one band up.
 test('the bands are inclusive at their lower edge', () => {

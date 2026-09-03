@@ -9,11 +9,30 @@
   --color-blood: #ff2a2a;
   --color-blood-dim: #7a0f0f;
   --color-amber: #d99114;
+  --color-verdant: #2fd46a;
+  --color-verdant-dim: #0f5227;
+  /* The accent every gauge, needle and status line draws with. It points at the
+     risk palette by default and is remapped for a progress domain, so a component
+     never has to know which kind of counter it is inside. */
+  --color-signal: var(--color-blood);
+  --color-signal-dim: var(--color-blood-dim);
+  /* The same accent as an "R G B" triplet, so `.vignette` and `.glow` can build an
+     alpha-blended glow with `rgb(var(--color-signal-rgb) / <alpha>)` — a hex custom
+     property cannot carry alpha on its own. */
+  --color-signal-rgb: 255 42 42;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 html {
   color-scheme: dark;
+}
+
+/* Set on the page wrapper for a domain whose counter measures progress. High is
+   good there, so an alarm-red dial would read as the opposite of what it says. */
+.polarity-progress {
+  --color-signal: var(--color-verdant);
+  --color-signal-dim: var(--color-verdant-dim);
+  --color-signal-rgb: 47 212 106;
 }
 
 body {
@@ -55,7 +74,11 @@ body {
 }
 
 .vignette {
-  background: radial-gradient(ellipse at 50% 35%, rgba(255, 42, 42, 0.07), transparent 60%);
+  background: radial-gradient(
+    ellipse at 50% 35%,
+    rgb(var(--color-signal-rgb) / 0.07),
+    transparent 60%
+  );
 }
 
 /* RGB split, driven from JS so it fires on an irregular beat instead of a loop. */
@@ -76,9 +99,39 @@ body {
   100% { transform: translate(0); clip-path: inset(0 0 0 0); }
 }
 
+/* The progress counterpart to `.glitch`: no split, no clip-path tear — a
+   progress domain's fault is not corruption, it is arrival. A slower single
+   breath (scale + a bloom that builds and fades) reads as something landing
+   softly rather than something breaking. Same trigger, same duration budget as
+   `.glitch`, driven from the same timer in CounterHero, so a domain's polarity
+   swaps which class fires without touching when it fires. */
+.glow {
+  position: relative;
+  animation: glow-pulse 900ms ease-out 1;
+}
+
+@keyframes glow-pulse {
+  0% {
+    transform: scale(1);
+    text-shadow: 0 0 0 rgb(var(--color-signal-rgb) / 0);
+  }
+  35% {
+    transform: scale(1.04);
+    text-shadow:
+      0 0 12px rgb(var(--color-signal-rgb) / 0.9),
+      0 0 32px rgb(var(--color-signal-rgb) / 0.55),
+      0 0 64px rgb(var(--color-signal-rgb) / 0.25);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: 0 0 0 rgb(var(--color-signal-rgb) / 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .crt::after,
-  .glitch {
+  .glitch,
+  .glow {
     animation: none;
   }
 }

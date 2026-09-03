@@ -85,13 +85,35 @@ export function steadySignal(dailyScore: number, halfLifeDays = HALF_LIFE_DAYS, 
   return dailyScore * (halfLifeDays / Math.LN2) * coveredWeight(horizonDays, halfLifeDays);
 }
 
+// Which way is up. The gauge measures how much a domain's feeds are publishing;
+// this says whether more of it is bad news or good. Nothing in the formula above
+// reads it — the same signal, decay and divisor produce the number either way
+// (STU-1279).
+export type Polarity = 'risk' | 'progress';
+
 // The counter's four bands, as the site prints them. This lives here rather
 // than in `CounterHero` because that component is `'use client'`: the summary
 // route the desktop widget polls has to reach the thresholds from the server,
 // and a widget that carried its own copy would drift the moment a band moved.
-export function statusLine(counter: number): string {
-  if (counter >= 60) return 'CONTAINMENT DEGRADED';
-  if (counter >= 35) return 'ELEVATED ACTIVITY';
-  if (counter >= 18) return 'BACKGROUND CHATTER';
-  return 'NOMINAL';
+//
+// One set of thresholds, two vocabularies. The cut points are shared on purpose:
+// they describe how loud a domain is, and only the wording says whether loud is
+// alarming.
+const BANDS: Record<Polarity, readonly [number, string][]> = {
+  risk: [
+    [60, 'CONTAINMENT DEGRADED'],
+    [35, 'ELEVATED ACTIVITY'],
+    [18, 'BACKGROUND CHATTER'],
+    [0, 'NOMINAL'],
+  ],
+  progress: [
+    [60, 'GROUND GAINED'],
+    [35, 'STEADY ADVANCE'],
+    [18, 'SOME MOVEMENT'],
+    [0, 'STALLED'],
+  ],
+};
+
+export function statusLine(counter: number, polarity: Polarity = 'risk'): string {
+  return BANDS[polarity].find(([floor]) => counter >= floor)![1];
 }

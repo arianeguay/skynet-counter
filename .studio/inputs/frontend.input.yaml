@@ -1,0 +1,21 @@
+# Feeds for the front-end domain. Measured on 2026-09-03 (STU-1279): all seven
+# returned items, and six of them contributed score. The platform feeds carry the
+# Baseline and interop vocabulary; the craft feeds carry the same words when a
+# technique stops needing a fallback.
+run: scheduled
+
+feeds:
+  - source: web.dev
+    url: https://web.dev/static/blog/feed.xml
+  - source: Chrome Developers
+    url: https://developer.chrome.com/static/blog/feed.xml
+  - source: WebKit
+    url: https://webkit.org/feed/
+  - source: Mozilla Hacks
+    url: https://hacks.mozilla.org/feed/
+  - source: Smashing Magazine
+    url: https://www.smashingmagazine.com/feed/
+  - source: CSS-Tricks
+    url: https://css-tricks.com/feed/
+  - source: A List Apart
+    url: https://alistapart.com/main/feed/

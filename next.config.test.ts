@@ -35,6 +35,9 @@ test('every redirect is permanent, so the old URL stops being crawled', async ()
 });
 
 // The rename is only finished if nothing still calls the domain by its old name.
-test('no domain is registered under the retired slug', () => {
-  expect(DOMAINS.map((d) => d.slug)).toEqual(['cybersecurite', 'environment']);
+// Asserted against the retired slugs rather than a snapshot of the registry, which
+// would break every time a domain is added and say nothing about the rename.
+test('no domain is registered under a retired slug', () => {
+  const slugs = DOMAINS.map((d) => d.slug);
+  for (const retired of Object.keys(RETIRED_SLUGS)) expect(slugs).not.toContain(retired);
 });

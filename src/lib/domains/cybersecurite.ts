@@ -13,6 +13,8 @@ export const cybersecurite: Domain = {
   // 70 on a doubled one, and still stops short of 100 on a tripled one. The
   // previous /8 was guessed while every article scored 0; it pegs the gauge at 100
   // on an ordinary week and never comes back down (STU-1171).
+  polarity: 'risk',
+  question: { prefix: 'How close are we to', subject: 'The Singularity' },
   divisor: 32,
   keywords: {
     'loss of control': 15,
