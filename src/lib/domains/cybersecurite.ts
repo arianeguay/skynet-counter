@@ -5,7 +5,7 @@ import type { Domain } from './index';
 // 2026-09-01 against the live corpus (STU-1216).
 export const cybersecurite: Domain = {
   slug: 'cybersecurite',
-  label: 'Cybersécurité',
+  label: 'Cybersecurity',
   tagline: 'AI-driven compromise, autonomy and loss of control',
   // Calibrated 2026-09-01 by `bun run calibrate` against the live corpus, whose
   // feeds publish 97 points of score a day between them. At a 7-day half-life

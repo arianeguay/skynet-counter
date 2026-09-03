@@ -11,7 +11,7 @@ import type { Domain } from './index';
 // decision, so its presence marks a story rather than the beat.
 export const ecologie: Domain = {
   slug: 'ecologie',
-  label: 'Écologie',
+  label: 'Environment',
   tagline: 'What AI compute is taking from the grid, the air and the water table',
   // Provisional. Measured at 51.8 score/day across the feed set, which projects
   // to a steady signal of ~497, so /24 reads 33 on an ordinary week and leaves
