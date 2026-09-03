@@ -1,0 +1,22 @@
+# Feeds for the écologie domain. Measured on 2026-09-02 (STU-1218): every one
+# below returned items and contributed score. Two candidates are deliberately
+# absent — heatmap.news/feed answered 404, and The Verge's climate feed parsed
+# zero items.
+run: scheduled
+
+feeds:
+  - source: Data Center Dynamics
+    url: https://www.datacenterdynamics.com/en/rss/
+  - source: Canary Media
+    url: https://www.canarymedia.com/rss.xml
+  - source: Carbon Brief
+    url: https://www.carbonbrief.org/feed/
+  - source: Grist
+    url: https://grist.org/feed/
+  - source: Inside Climate News
+    url: https://insideclimatenews.org/feed/
+  # The only source here that is not climate trade press. Filtered on the compute
+  # side of the beat rather than the climate side, which is where this domain's
+  # stories actually break.
+  - source: HN datacenter energy
+    url: https://hnrss.org/newest?q=datacenter+OR+%22data+center%22+OR+emissions+OR+%22power+grid%22&points=50
