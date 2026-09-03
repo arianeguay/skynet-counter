@@ -109,7 +109,8 @@ point at the bun binary or every one of them dies on that import. The same reaso
 ### Where a test file goes
 
 `src` tests sit next to the code they cover; **script tests live in
-[tests/studio/](tests/studio/), not beside the script**, and **widget tests live in
+[tests/studio/](tests/studio/), not beside the script**, the scheduler's live in
+[tests/docker/](tests/docker/), and **widget tests live in
 [tests/widgets/](tests/widgets/)** — Übersicht loads every `.jsx` in its widget
 directory as a widget, so a test beside `skynet-counter.jsx` installs as a second,
 broken one. That test is a `.jsx` rather than a `.tsx` on purpose: `tsconfig.json`
@@ -160,6 +161,28 @@ a working one until someone reads the timestamp. `page.test.tsx` asserts the exp
 [DomainNav](src/components/DomainNav.tsx) is driven by `DOMAINS` and renders nothing
 below two domains, so it stays out of the way until there is something to switch to and
 needs no edit when there is.
+
+### The schedule
+
+[docker/run-loop.sh](docker/run-loop.sh) is the only scheduler — no cron, no systemd
+timer. `SKYNET_SCHEDULE` is `slug:seconds` pairs, and each domain keeps its next-due
+timestamp under `/data/schedule` so a container bounce does not re-sweep everything at
+once.
+
+The domains sweep **in turn, in one container**, not one container each. That is a
+deliberate trade: four concurrent sweeps would be four `claude` sessions sharing one
+login through a read-write `~/.claude` mount, refreshing the same token against each
+other, and four scoring stages billing at the same moment. Taking turns gives that up
+in exchange for losing process isolation, so both ways a domain could hold up another
+are closed inside the loop instead — a failing sweep cannot stop it, and a hanging one
+is bounded by `SWEEP_TIMEOUT`. Splitting into a service per domain means solving the
+shared-credential problem first.
+
+The loop refuses to start without `SKYNET_SCHEDULE` rather than defaulting to a slug:
+a default in shell is a second copy of `DEFAULT_DOMAIN` that cannot be read from
+TypeScript, and a stale one would sweep a domain nothing serves.
+[tests/docker/run-loop.test.ts](tests/docker/run-loop.test.ts) drives the script with a
+stub `studio` on PATH, so the cadence is provable without Docker or a paid run.
 
 ### The keyword table
 
@@ -292,6 +315,9 @@ proof, not the edit.
 - the desktop widget — `tests/widgets/` renders it with `renderToStaticMarkup` and
   asserts on the markup, so the bands, the needle geometry and the failure paths are
   provable without a Mac or Übersicht anywhere near it
+- the sweep scheduler's *logic* — `tests/docker/run-loop.test.ts` runs
+  `docker/run-loop.sh` against a stub `studio` on PATH, so cadence, failure isolation
+  and restart behaviour need neither Docker nor a paid run
 
 **`claude:local` — anything whose proof is a real `studio run`:**
 
@@ -302,7 +328,9 @@ proof, not the edit.
 - **accumulated history in `data/skynet.db`.** Anything that depends on weeks of scored
   articles — counter calibration, decay behaviour — cannot be shown against an empty
   file.
-- Docker, systemd and deployment changes.
+- the Dockerfile, the compose topology, systemd units and anything else whose proof is
+  the container actually starting. The scheduler is the split worth noting: its logic is
+  above, but "does the image still build and run this" is not.
 
 Worked examples: STU-1170 (the validator never looks for keywords the scorer left out)
 is `claude:web` — the fix is a pure script and a `bun test` settles it. STU-1171
