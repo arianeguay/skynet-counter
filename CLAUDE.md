@@ -184,6 +184,39 @@ TypeScript, and a stale one would sweep a domain nothing serves.
 [tests/docker/run-loop.test.ts](tests/docker/run-loop.test.ts) drives the script with a
 stub `studio` on PATH, so the cadence is provable without Docker or a paid run.
 
+### Why there is no domotique domain
+
+Measured on 2026-09-02 (STU-1217). The domain fails differently from the ones that
+work: the incident vocabulary exists and matches fine, but no feed publishes
+home-automation incidents.
+
+Against smart-home-proper sources — the Home Assistant blog, an HN smart-home filter
+and The Verge's smart home feed — vocabulary naming a device in a house going wrong
+scored **0.0 per day**. Thirteen of fifteen such keywords were dead across 80
+articles: `bricked`, `cloud shutdown`, `default credentials`, `always listening`,
+`camera feed`, `no longer receive updates`, `end of life`, `recall`. That press is
+product press. It reviews, announces and prices; it does not report incidents.
+
+Widening to general security feeds does produce signal, and the signal is wrong. The
+top scorers were SonicWall SMA 1000, Switchvox, Langflow and a WordPress backup
+plugin — a second cybersecurity counter, which is the trap the issue names when it
+warns off feeds that will score for the wrong reason.
+
+The one feed carrying device-security vocabulary at volume is **CISA's ICS
+advisories**: 17.5 score/day, 8 of 12 sampled articles scoring, on real device
+findings. But they are *industrial* — Rockwell Automation, Mitsubishi CNC, embedded
+radio modules. A counter built on them and labelled domotique would be an advisory
+feed wearing a label about someone's house.
+
+So the counter ships without domotique. The version that would work is a differently
+named domain — connected-device or industrial-control advisories — which is a change
+to what the site claims to measure, not a keyword list to tune.
+
+Two things found while measuring, worth not rediscovering: `staceyoniot.com/feed`
+parses fine but its newest item is over three years old, and
+`theverge.com/smart-home/rss/index.xml` 404s while
+`theverge.com/rss/smart-home/index.xml` works.
+
 ### Why there is no design domain
 
 Measured on 2026-09-02 against 89 hydrated articles from eight live design and
