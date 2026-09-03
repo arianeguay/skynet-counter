@@ -1,4 +1,4 @@
-import { isFlapping, type FeedError } from '@/lib/db';
+import { isFlapping, type FeedError, type HostOutage } from '@/lib/db';
 
 // A publisher's one-off 502 clears itself on the next sweep, so only a failure
 // that has outlived a day is worth a warning on a public page.
@@ -22,29 +22,52 @@ function verdict(feed: FeedError, now: number): string | null {
   return isFlapping(feed) ? `FLAPPING ${feed.failedSweeps}/${feed.totalSweeps}` : null;
 }
 
-export function FeedAlert({ feedErrors }: { feedErrors: FeedError[] }) {
+export function FeedAlert({
+  feedErrors,
+  hostOutage = null,
+}: {
+  feedErrors: FeedError[];
+  hostOutage?: HostOutage | null;
+}) {
   const now = Date.now();
   const dead = feedErrors
     .map((f) => ({ ...f, verdict: verdict(f, now) }))
     .filter((f): f is FeedError & { verdict: string } => f.verdict !== null);
 
-  if (dead.length === 0) return null;
+  if (dead.length === 0 && hostOutage === null) return null;
 
   return (
     <section className="mt-6 border border-amber/50 bg-panel p-4">
-      <h2 className="text-xs tracking-[0.3em] text-amber">/// FEED FAULT</h2>
-      <p className="mt-2 text-xs text-ash">
-        Running on incomplete input &mdash; {dead.length} source{dead.length > 1 && 's'} unreliable.
-      </p>
-      <ul className="mt-3 space-y-1">
-        {dead.map((f) => (
-          <li key={f.source} className="flex flex-col gap-1 text-xs sm:flex-row sm:gap-4">
-            <span className="shrink-0 text-bone sm:w-32 sm:truncate">{f.source}</span>
-            <span className="shrink-0 text-amber tabular-nums">{f.verdict}</span>
-            <span className="min-w-0 flex-1 truncate text-ash/70">{f.error}</span>
-          </li>
-        ))}
-      </ul>
+      {hostOutage && (
+        <div>
+          <h2 className="text-xs tracking-[0.3em] text-amber">/// HOST FAULT</h2>
+          <p className="mt-2 text-xs text-ash">
+            Every feed failed together in {hostOutage.sweeps} sweep
+            {hostOutage.sweeps > 1 && 's'} of the last day &mdash; this host, not the publishers.
+          </p>
+          <p className="mt-1 text-xs text-ash/70">
+            Last {downFor(now - Date.parse(hostOutage.lastAt))} ago: {hostOutage.error}
+          </p>
+        </div>
+      )}
+      {dead.length > 0 && (
+        <div className={hostOutage ? 'mt-4 border-t border-amber/20 pt-4' : undefined}>
+          <h2 className="text-xs tracking-[0.3em] text-amber">/// FEED FAULT</h2>
+          <p className="mt-2 text-xs text-ash">
+            Running on incomplete input &mdash; {dead.length} source{dead.length > 1 && 's'}{' '}
+            unreliable.
+          </p>
+          <ul className="mt-3 space-y-1">
+            {dead.map((f) => (
+              <li key={f.source} className="flex flex-col gap-1 text-xs sm:flex-row sm:gap-4">
+                <span className="shrink-0 text-bone sm:w-32 sm:truncate">{f.source}</span>
+                <span className="shrink-0 text-amber tabular-nums">{f.verdict}</span>
+                <span className="min-w-0 flex-1 truncate text-ash/70">{f.error}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

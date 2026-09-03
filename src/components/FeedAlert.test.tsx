@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { FeedError } from '@/lib/db';
+import type { FeedError, HostOutage } from '@/lib/db';
 import { FLAP_MIN_SWEEPS } from '@/lib/db';
 import { FeedAlert, STALE_AFTER_MS } from './FeedAlert';
 
@@ -69,4 +69,35 @@ test('a feed that failed once and recovered still renders nothing', () => {
 test('a bad ratio over too few sweeps is not enough to report', () => {
   const tooFew = flapping(FLAP_MIN_SWEEPS - 1, FLAP_MIN_SWEEPS - 1);
   expect(renderToStaticMarkup(<FeedAlert feedErrors={[tooFew]} />)).toBe('');
+});
+
+const outage = (sweeps: number, hoursAgo = 2): HostOutage => ({
+  sweeps,
+  lastAt: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(),
+  error: 'getaddrinfo ETIMEOUT grist.org',
+});
+
+// The whole point of striking those sweeps upstream: the publishers are gone
+// from the banner, and what replaces them names the party actually at fault.
+test('a host outage is named as the host, with no publisher listed', () => {
+  const html = renderToStaticMarkup(<FeedAlert feedErrors={[]} hostOutage={outage(10)} />);
+  expect(html).toContain('HOST FAULT');
+  expect(html).toContain('10 sweeps');
+  expect(html).toContain('getaddrinfo ETIMEOUT grist.org');
+  expect(html).not.toContain('FEED FAULT');
+});
+
+// An outage does not excuse a feed that also failed when the others answered,
+// so the two verdicts have to be able to appear at once.
+test('a real feed fault still shows alongside a host outage', () => {
+  const html = renderToStaticMarkup(
+    <FeedAlert feedErrors={[flapping(18, 24)]} hostOutage={outage(3)} />
+  );
+  expect(html).toContain('HOST FAULT');
+  expect(html).toContain('FEED FAULT');
+  expect(html).toContain('FLAPPING 18/24');
+});
+
+test('renders nothing when there is neither a feed fault nor an outage', () => {
+  expect(renderToStaticMarkup(<FeedAlert feedErrors={[]} hostOutage={null} />)).toBe('');
 });

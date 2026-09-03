@@ -29,7 +29,7 @@ export default async function DomainPage({ params }: { params: Promise<{ domaine
   const domain = domainBySlug((await params).domaine);
   if (!domain) notFound();
 
-  const { counter, updatedAt, articles, feedErrors } = readSnapshot(domain.slug);
+  const { counter, updatedAt, articles, feedErrors, hostOutage } = readSnapshot(domain.slug);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-16">
@@ -43,7 +43,7 @@ export default async function DomainPage({ params }: { params: Promise<{ domaine
         tagline={domain.tagline}
       />
 
-      <FeedAlert feedErrors={feedErrors} />
+      <FeedAlert feedErrors={feedErrors} hostOutage={hostOutage} />
 
       <section className="mt-10">
         <h2 className="mb-3 text-xs tracking-[0.3em] text-ash">/// SIGNAL LOG</h2>

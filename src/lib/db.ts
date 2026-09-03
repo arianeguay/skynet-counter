@@ -43,6 +43,18 @@ export interface FeedError {
   pagesUnread: number;
 }
 
+// A sweep in which no source could even be reached is this host, not the
+// publishers — unrelated feeds do not become unreachable in the same minute. It is reported separately
+// and struck from each feed's record, because otherwise every source
+// independently accumulates the ratio that puts its name on a public page: ten
+// of cybersecurite's eighteen sweeps looked like this on 2026-09-03 while the
+// box had no resolver, and four publishers were named for it (STU-1278).
+export interface HostOutage {
+  sweeps: number;
+  lastAt: string;
+  error: string;
+}
+
 // How far back `failedSweeps` / `totalSweeps` look. Wide enough that an hourly
 // schedule gives a usable denominator, narrow enough that yesterday's outage
 // stops counting once a feed is healthy again.
@@ -73,6 +85,7 @@ export interface CounterSnapshot {
   updatedAt: string;
   articles: Article[];
   feedErrors: FeedError[];
+  hostOutage: HostOutage | null;
 }
 
 function columnsOf(db: Database, table: string): string[] {
@@ -278,15 +291,63 @@ interface SweepRow {
 // read rather than just the window, because `since` has to reach past it — a feed
 // down for a fortnight has no successful sweep inside 24 hours to date the run
 // from.
-export function readFeedErrors(db: Database, domain: string, now = Date.now()): FeedError[] {
-  const rows = db
+function readSweeps(db: Database, domain: string): SweepRow[] {
+  return db
     .query<SweepRow, [string]>(
       'SELECT source, swept_at, error, pages_unread FROM feed_sweeps WHERE domain = ? ORDER BY source, swept_at'
     )
     .all(domain);
+}
 
+// `fetch-feed.ts` writes one of two shapes: `<source> responded <status>` when
+// the publisher answered, or the thrown error's message when it never did. So a
+// status is proof the host resolved the name and completed the connection, and
+// a sweep containing one cannot be a local outage however many feeds failed.
+function reachedPublisher(error: string): boolean {
+  return error.includes('responded ');
+}
+
+// Keyed by `swept_at`, valued by one of the errors that sweep reported. A lone
+// source failing is that source; it takes a second feed for "all of them" to
+// mean anything, and that floor is also what stops a single-feed domain from
+// ever charging its own outage to the host.
+function hostOutageSweeps(rows: SweepRow[]): Map<string, string> {
+  const bySweep = new Map<string, SweepRow[]>();
+  for (const row of rows) {
+    const group = bySweep.get(row.swept_at);
+    if (group) group.push(row);
+    else bySweep.set(row.swept_at, [row]);
+  }
+
+  const outages = new Map<string, string>();
+  for (const [sweptAt, group] of bySweep) {
+    if (group.length < 2) continue;
+    if (group.some((s) => s.error === null || reachedPublisher(s.error))) continue;
+    outages.set(sweptAt, group[0]!.error!);
+  }
+  return outages;
+}
+
+export function readHostOutage(db: Database, domain: string, now = Date.now()): HostOutage | null {
+  const windowStart = new Date(now - SWEEP_WINDOW_MS).toISOString();
+  const recent = [...hostOutageSweeps(readSweeps(db, domain))]
+    .filter(([sweptAt]) => sweptAt >= windowStart)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  const last = recent.at(-1);
+  return last ? { sweeps: recent.length, lastAt: last[0], error: last[1] } : null;
+}
+
+export function readFeedErrors(db: Database, domain: string, now = Date.now()): FeedError[] {
+  const rows = readSweeps(db, domain);
+  const outages = hostOutageSweeps(rows);
+
+  // Struck before any counting, so a host outage lands in neither the ratio nor
+  // the trailing run. A source that also failed in sweeps the others survived
+  // keeps those failures and is still reported.
   const bySource = new Map<string, SweepRow[]>();
   for (const row of rows) {
+    if (outages.has(row.swept_at)) continue;
     const group = bySource.get(row.source);
     if (group) group.push(row);
     else bySource.set(row.source, [row]);
@@ -340,12 +401,12 @@ export function readSnapshot(domain: string, limit = 40): CounterSnapshot {
         'SELECT * FROM articles WHERE domain = ? AND score IS NOT NULL ORDER BY published_at DESC LIMIT ?'
       )
       .all(domain, limit);
-    const feedErrors = readFeedErrors(db, domain);
     return {
       counter: counter?.value ?? 0,
       updatedAt: counter?.updated_at ?? new Date(0).toISOString(),
       articles: rows.map(toArticle),
-      feedErrors,
+      feedErrors: readFeedErrors(db, domain),
+      hostOutage: readHostOutage(db, domain),
     };
   } finally {
     db.close();
