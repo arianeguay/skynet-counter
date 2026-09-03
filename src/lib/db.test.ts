@@ -3,7 +3,7 @@ import { afterEach, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDb, readCounter, readFeedErrors, readSnapshot } from '@/lib/db';
+import { openDb, readCounter, readFeedErrors, readHostOutage, readSnapshot } from '@/lib/db';
 import { DEFAULT_DOMAIN, currentDomain, domainBySlug } from '@/lib/domains';
 
 const dirs: string[] = [];
@@ -257,6 +257,103 @@ test('a domain reads only its own counter, and zero when it has never swept', ()
 
   expect(readCounter('cybersecurite').counter).toBe(41.3);
   expect(readCounter('environment').counter).toBe(0);
+});
+
+// Seeds `sweeps` sweeps an hour apart, most recent last. Each entry names the
+// sources that FAILED that sweep; the rest of `sources` answered it.
+function seedSweeps(db: Database, domain: string, sources: string[], failures: string[][]): void {
+  const insert = db.prepare(
+    'INSERT INTO feed_sweeps (domain, source, swept_at, error, pages_unread) VALUES (?, ?, ?, ?, 0)'
+  );
+  failures.forEach((failed, i) => {
+    const sweptAt = new Date(Date.now() - (failures.length - 1 - i) * 3_600_000).toISOString();
+    for (const source of sources) {
+      insert.run(domain, source, sweptAt, failed.includes(source) ? 'getaddrinfo ETIMEOUT' : null);
+    }
+  });
+}
+
+// The bug this closes: the host lost its resolver, every feed failed together,
+// and each one independently accumulated the ratio that named it on a public
+// page. Four innocent publishers were listed that way on 2026-09-03.
+test('a sweep that lost every source is struck from each feed record', () => {
+  tempDbPath();
+  const db = openDb();
+  const sources = ['Ars Technica', 'Krebs on Security', 'The Hacker News'];
+  seedSweeps(db, 'cybersecurite', sources, [sources, sources, sources, ['Ars Technica']]);
+
+  const errors = readFeedErrors(db, 'cybersecurite');
+  db.close();
+
+  // Only the sweep the other two survived counts, so only the feed that failed
+  // it is left — and on that one sweep, not on four.
+  expect(errors.map((e) => e.source)).toEqual(['Ars Technica']);
+  expect(errors[0]).toMatchObject({ failedSweeps: 1, totalSweeps: 1 });
+});
+
+test('the outage is reported rather than silently discarded', () => {
+  tempDbPath();
+  const db = openDb();
+  const sources = ['Ars Technica', 'Krebs on Security'];
+  seedSweeps(db, 'cybersecurite', sources, [sources, [], sources]);
+
+  const outage = readHostOutage(db, 'cybersecurite');
+  db.close();
+
+  expect(outage).toMatchObject({ sweeps: 2, error: 'getaddrinfo ETIMEOUT' });
+});
+
+// With one feed, "every feed failed" is only "the feed failed" — and charging
+// that to the host would erase the one fault the domain can actually have.
+test('a single-source domain never charges its own outage to the host', () => {
+  tempDbPath();
+  const db = openDb();
+  seedSweeps(db, 'environment', ['Grist'], [['Grist'], ['Grist'], ['Grist']]);
+
+  const errors = readFeedErrors(db, 'environment');
+  const outage = readHostOutage(db, 'environment');
+  db.close();
+
+  expect(errors.map((e) => e.source)).toEqual(['Grist']);
+  expect(outage).toBeNull();
+});
+
+// The distinction that keeps the rule honest: a status line means the host
+// resolved the name and completed the connection, so however many feeds carry
+// one, the fault is theirs and stays on their record.
+test('feeds that answered with an HTTP status are never charged to the host', () => {
+  tempDbPath();
+  const db = openDb();
+  const insert = db.prepare(
+    'INSERT INTO feed_sweeps (domain, source, swept_at, error, pages_unread) VALUES (?, ?, ?, ?, 0)'
+  );
+  const sweptAt = new Date().toISOString();
+  insert.run('cybersecurite', 'Krebs on Security', sweptAt, 'Krebs on Security responded 503');
+  insert.run('cybersecurite', 'Ars Technica', sweptAt, 'Ars Technica responded 404');
+
+  const errors = readFeedErrors(db, 'cybersecurite');
+  const outage = readHostOutage(db, 'cybersecurite');
+  db.close();
+
+  expect(errors.map((e) => e.source)).toEqual(['Ars Technica', 'Krebs on Security']);
+  expect(outage).toBeNull();
+});
+
+test('an outage older than the window is struck from records but not reported', () => {
+  tempDbPath();
+  const db = openDb();
+  const insert = db.prepare(
+    'INSERT INTO feed_sweeps (domain, source, swept_at, error, pages_unread) VALUES (?, ?, ?, ?, 0)'
+  );
+  const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+  for (const source of ['Grist', 'Carbon Brief']) insert.run('environment', source, old, 'getaddrinfo ETIMEOUT');
+
+  const errors = readFeedErrors(db, 'environment');
+  const outage = readHostOutage(db, 'environment');
+  db.close();
+
+  expect(errors).toEqual([]);
+  expect(outage).toBeNull();
 });
 
 test('a domain reads only its own feed faults', () => {

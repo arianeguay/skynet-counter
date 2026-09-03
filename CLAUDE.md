@@ -387,6 +387,20 @@ anything that only knew the current state (STU-1207). `readFeedErrors()` derives
 shapes from it: the length of the trailing run of failures, and the failure ratio over
 the last 24 hours.
 
+A sweep where **no source could be reached** is charged to the host, not to the
+publishers. `hostOutageSweeps()` strikes those sweeps from every feed's record before
+any counting, and `readHostOutage()` reports the outage on its own — otherwise each
+feed independently accumulates the ratio that names it on a public page. Ten of
+cybersecurite's eighteen sweeps looked like that on 2026-09-03 while apollon had no
+resolver, and the site listed four healthy publishers as flapping (STU-1278).
+
+Two guards keep that from swallowing real faults. It takes **two** sources, since with
+one feed "all of them failed" is only "the feed failed". And an error carrying an HTTP
+status is proof the host resolved the name and completed the connection, so a sweep
+holding one is never an outage however many feeds failed — `fetch-feed.ts` writes
+`<source> responded <status>` for exactly that case and the thrown message otherwise,
+which is the whole vocabulary `reachedPublisher()` reads.
+
 Rows are pruned past `SWEEP_RETENTION_DAYS`, and dropped outright for a source no longer
 in the input list — deleting a feed while it fails is the likely reason to delete it
 (STU-1198).
