@@ -76,13 +76,37 @@ export const USER_AGENT = 'skynet-counter/0.1 (+https://skynet-counter.com)';
 const CHROME = /<(script|style|noscript|nav|header|footer|aside|svg)[\s\S]*?<\/\1>/gi;
 const PAGE_TEXT_LIMIT = 4000;
 
+// Only the prose. Stripping chrome leaves the rails publishers put *inside* the
+// article body — related-article lists, tag strips, the author bio — and those
+// carry the keyword table without describing the article at all. Measured on 35
+// live pages (STU-1274): BleepingComputer's author bio reads "covering ... data
+// breach incidents", so every article by that writer scored `breach`; a tag strip
+// supplied `remote code execution`; The Hacker News' category label above the body
+// supplied `vulnerability`.
+//
+// The cut is structural rather than a list of class names, which differ per
+// publisher and change without notice: prose is in <p>, and those rails are links
+// and headings. It cost nothing on that sample — no page lost its article, and the
+// only matches it removed were those three.
+const PARAGRAPH = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+
 async function pageText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: { 'user-agent': USER_AGENT },
     signal: AbortSignal.timeout(8_000),
   });
   if (!res.ok || !(res.headers.get('content-type') ?? '').includes('html')) return '';
-  return decode((await res.text()).replace(CHROME, ' ')).slice(0, PAGE_TEXT_LIMIT);
+  const body = (await res.text()).replace(CHROME, ' ');
+  // A page with no <p> yields nothing, and is held back like one that failed to
+  // load rather than scored on whatever else the markup held. `unread_pages`
+  // bounds the retries, and the per-feed `pages_unread` count is where a
+  // publisher that stopped using paragraphs would show up.
+  return [...body.matchAll(PARAGRAPH)]
+    .map((m) => decode(m[1]!))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, PAGE_TEXT_LIMIT);
 }
 
 // Every feed is hydrated, because measuring all five on 2026-09-01 found none
