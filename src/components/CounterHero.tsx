@@ -9,10 +9,14 @@ export function CounterHero({
   counter,
   updatedAt,
   scored,
+  label,
+  tagline,
 }: {
   counter: number;
   updatedAt: string;
   scored: number;
+  label: string;
+  tagline: string;
 }) {
   const hero = useRef<HTMLElement>(null);
   const [pinned, setPinned] = useState(false);
@@ -72,7 +76,10 @@ export function CounterHero({
         }`}
       >
         <div className="mx-auto flex max-w-4xl items-center gap-4 px-6 py-2.5">
-          <span className="text-[10px] tracking-[0.3em] text-ash">SKYNET</span>
+          <span className="hidden text-[10px] tracking-[0.3em] text-ash sm:inline">SKYNET</span>
+          <span className="truncate text-[10px] tracking-[0.3em] text-bone">
+            {label.toUpperCase()}
+          </span>
           <GlitchNumber value={counter} glitching={glitching} variant="bar" />
           <span className="truncate text-[10px] tracking-[0.2em] text-blood">{status}</span>
           <span className="ml-auto shrink-0 text-[10px] text-ash tabular-nums">{scored} SCORED</span>
@@ -86,12 +93,16 @@ export function CounterHero({
       </header>
 
       <section ref={hero} className="vignette flex flex-col items-center gap-6 border border-hairline bg-panel/40 px-6 py-14">
-        <p className="text-xs tracking-[0.4em] text-ash">SKYNET COUNTER</p>
+        <p className="text-xs tracking-[0.4em] text-ash">
+          SKYNET COUNTER <span className="text-hairline">/</span>{' '}
+          <span className="text-bone">{label.toUpperCase()}</span>
+        </p>
         <p className="text-sm tracking-[0.25em] text-blood">
           How close are we to{' '}
           {/* inline-block: a bare inline span ignores the animation's transform. */}
           <span className={`inline-block ${glitching ? 'glitch' : ''}`}>The Singularity</span>?
         </p>
+        <p className="max-w-md text-center text-xs text-ash">{tagline}</p>
         <Gauge value={counter} />
         <GlitchNumber value={counter} glitching={glitching} />
         <p className="text-sm tracking-[0.25em] text-blood">{status}</p>
