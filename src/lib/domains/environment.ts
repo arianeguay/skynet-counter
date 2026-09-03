@@ -48,5 +48,8 @@ export const environment: Domain = {
     '- A keyword that belongs to a story about climate at large rather than about',
     '  compute — "coal plant" in an essay on burnout, for instance. This counter',
     '  measures what computing takes, not the state of the climate.',
+    '- A keyword pointing the other way: the article is about the draw going *down*.',
+    '  "Reducing on-site water usage" in a story about a cooling system is the',
+    '  vendor solving the problem this counter measures, not causing it.',
   ].join('\n'),
 };
