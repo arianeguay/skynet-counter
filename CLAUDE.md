@@ -184,6 +184,37 @@ TypeScript, and a stale one would sweep a domain nothing serves.
 [tests/docker/run-loop.test.ts](tests/docker/run-loop.test.ts) drives the script with a
 stub `studio` on PATH, so the cadence is provable without Docker or a paid run.
 
+### Why there is no design domain
+
+Measured on 2026-09-02 against 89 hydrated articles from eight live design and
+frontend feeds — Smashing Magazine, CSS-Tricks, A List Apart, NN/g, UX Collective,
+web.dev, Chrome Developers, and an HN filter (STU-1219).
+
+A broad list scores the wrong things. Its top result was NN/g's *Artificial
+Intelligence: Glossary* at 36 points, because a glossary page contains the whole
+vocabulary by definition, and Chrome's *WebMCP origin trial* and *agent-ready
+toolkit* announcements at 8 each. A tight list scores nothing: the displacement
+vocabulary the domain would need — "replaces designers", "text to design", "prompt
+to app", "without a designer" — fires **zero** times in 89 articles, leaving 2 hits,
+one of which is that same glossary.
+
+There is no setting in between, and that is not a tuning failure. In cybersecurity
+"zero-day" appears in stories *about incidents* and rarely elsewhere, so its presence
+carries severity. In design "ai-generated" and "agentic" appear in any story *about
+the topic*, so their presence carries subject matter and nothing more. Keyword
+weighting measures severity only where the vocabulary is incident vocabulary, and
+design has no incident genre to supply one.
+
+Redefining risk for the domain is the other fork, and it costs more than it looks.
+Scoring on judgement rather than literal matches gives up the property that makes the
+counter worth publishing — that `validate-scores` can recompute every score from a
+closed table without asking a model. Scoring *velocity* instead of severity is
+deterministic and would work, but it makes the same gauge mean "how dangerous" on one
+route and "how fast is the ground moving" on another.
+
+So the counter ships without design. Reopen this with a mechanism, not a longer
+keyword list: a list is the thing that was measured and found not to separate.
+
 ### The keyword table
 
 Each domain's table lives in its own module and the matcher in
