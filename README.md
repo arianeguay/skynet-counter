@@ -75,6 +75,13 @@ The domain switcher above the gauge is built from the registry in
 `src/lib/domains/`, so it appears once a second domain exists and lists exactly the
 ones that do.
 
+Below it, every page also carries a **balance band** — how the risk domains are
+reading against the progress ones, each compared to its own recent normal rather
+than to another domain's raw counter (two counters on different divisors are not
+directly comparable). It renders nothing until there is at least one domain on each
+side. See CLAUDE.md's "The balance band" for why a domain is measured against
+itself rather than against the others.
+
 ## Pipeline shape
 
 | Stage | Executor | What it does |

@@ -77,6 +77,37 @@ export function counterFrom(signal: number, base: number, divisor: number): numb
   return Math.round(Math.min(100, Math.max(0, base + signal / divisor)) * 10) / 10;
 }
 
+// How far back a domain's own recent history is sampled, for comparing today's
+// counter to what has been normal for it lately (STU-1280).
+export const HISTORY_WINDOW_DAYS = 14;
+
+// One counter value per day for the last `windowDays`, ending today — what the
+// counter genuinely read on each of those days, reusing this same formula rather
+// than approximating it. `rows` must already cover `windowDays + horizonDays`
+// back from `now`, or the earliest points see a horizon that is missing its own
+// tail and read low for reasons that have nothing to do with that day.
+export function counterHistory(
+  rows: Sourced[],
+  now: number,
+  base: number,
+  divisor: number,
+  windowDays: number = HISTORY_WINDOW_DAYS,
+  halfLifeDays = HALF_LIFE_DAYS,
+  horizonDays = HORIZON_DAYS
+): number[] {
+  const points: number[] = [];
+  for (let daysAgo = windowDays; daysAgo >= 0; daysAgo--) {
+    const at = now - daysAgo * 864e5;
+    const horizonStart = at - horizonDays * 864e5;
+    const inWindow = rows.filter((r) => {
+      const t = Date.parse(r.published_at);
+      return t <= at && t >= horizonStart;
+    });
+    points.push(counterFrom(normalizedSignal(inWindow, at, halfLifeDays, horizonDays), base, divisor));
+  }
+  return points;
+}
+
 // What a feed publishing `dailyScore` points a day settles at, once every day
 // inside the horizon is populated. A corpus assembled from RSS windows is
 // half-empty for weeks, so this — not the stored history — is what DIVISOR has

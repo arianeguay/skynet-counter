@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CounterHero } from '@/components/CounterHero';
 import { ArticleLog } from '@/components/ArticleLog';
+import { BalanceBand } from '@/components/BalanceBand';
 import { DomainNav } from '@/components/DomainNav';
 import { FeedAlert } from '@/components/FeedAlert';
-import { readSnapshot } from '@/lib/db';
+import { readBalance, readSnapshot } from '@/lib/db';
 import { domainBySlug } from '@/lib/domains';
 
 // Never prerendered. `generateStaticParams` here looks harmless and is not: it
@@ -40,6 +41,7 @@ export default async function DomainPage({ params }: { params: Promise<{ domaine
       }`}
     >
       <DomainNav active={domain.slug} />
+      <BalanceBand deviations={readBalance()} />
 
       <CounterHero
         counter={counter}
