@@ -12,3 +12,6 @@ next-env.d.ts
 # Private local notes
 CLAUDE.local.md
 .claude/
+
+# Playwright MCP
+.playwright-mcp/
