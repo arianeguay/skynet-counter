@@ -19,7 +19,7 @@ services:
       SKYNET_DB: /data/skynet.db
       # How often each domain sweeps: `slug:seconds` pairs. This replaces
       # PIPELINE_INTERVAL, which could only say one number for every domain.
-      SKYNET_SCHEDULE: ${SKYNET_SCHEDULE:-cybersecurite:3600 environment:10800}
+      SKYNET_SCHEDULE: ${SKYNET_SCHEDULE:-cybersecurite:3600 environment:10800 frontend:10800}
     volumes:
       - skynet-data:/data
       # The provider spawns `claude`, which authenticates from the host session.
