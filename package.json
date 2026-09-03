@@ -10,7 +10,7 @@
     "start": "bun --bun next start",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "pipeline": "studio run skynet-counter --input-file .studio/inputs/default.input.yaml",
+    "pipeline": "SKYNET_DOMAIN=cybersecurite studio run skynet-counter --input-file .studio/inputs/cybersecurite.input.yaml",
     "calibrate": "bun scripts/calibrate.ts"
   },
   "dependencies": {

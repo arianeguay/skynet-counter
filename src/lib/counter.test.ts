@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
   BASE,
-  DIVISOR,
   HALF_LIFE_DAYS,
   HORIZON_DAYS,
   counterFrom,
@@ -11,6 +10,12 @@ import {
   steadySignal,
   type Sourced,
 } from '@/lib/counter';
+import { cybersecurite } from '@/lib/domains/cybersecurite';
+
+// The divisor is a domain's, not the formula's. These cases were written against
+// the cybersecurity feed set and its measured rate, so they keep reading its own.
+const DIVISOR = cybersecurite.divisor;
+const counterAt = (signal: number) => counterFrom(signal, BASE, DIVISOR);
 
 const NOW = Date.parse('2026-09-01T00:00:00.000Z');
 const agedDays = (days: number, score: number) => ({
@@ -43,17 +48,17 @@ test('the half-life is a parameter, so the harness can sweep it', () => {
 });
 
 test('an empty history leaves the counter at BASE', () => {
-  expect(counterFrom(decayedSignal([], NOW))).toBe(BASE);
+  expect(counterAt(decayedSignal([], NOW))).toBe(BASE);
 });
 
 test('the counter is BASE plus the signal over DIVISOR, to one decimal', () => {
-  expect(counterFrom(80)).toBe(BASE + 80 / DIVISOR);
-  expect(counterFrom(5)).toBe(12.2);
+  expect(counterAt(80)).toBe(BASE + 80 / DIVISOR);
+  expect(counterAt(5)).toBe(12.2);
 });
 
 // Enough simultaneous risk must peg the gauge rather than run off the end of it.
 test('the counter saturates at 100', () => {
-  expect(counterFrom(100_000)).toBe(100);
+  expect(counterAt(100_000)).toBe(100);
 });
 
 // The measured rate the constants were calibrated against on 2026-09-01: the
@@ -74,11 +79,11 @@ test('a steady feed settles at its daily score times the area under the decay', 
 // pegs the gauge on an ordinary week and it never comes back down.
 test('the calibrated divisor keeps silence, an ordinary week and a crisis on the gauge', () => {
   const steady = steadySignal(MEASURED_DAILY_SCORE);
-  expect(counterFrom(0)).toBe(BASE);
-  expect(counterFrom(0.4 * steady)).toBeLessThan(30);
-  expect(counterFrom(steady)).toBeGreaterThan(35);
-  expect(counterFrom(steady)).toBeLessThan(55);
-  expect(counterFrom(3 * steady)).toBeLessThan(100);
+  expect(counterAt(0)).toBe(BASE);
+  expect(counterAt(0.4 * steady)).toBeLessThan(30);
+  expect(counterAt(steady)).toBeGreaterThan(35);
+  expect(counterAt(steady)).toBeLessThan(55);
+  expect(counterAt(3 * steady)).toBeLessThan(100);
 });
 
 // `days` of history at MEASURED_DAILY_SCORE points a day, arriving hourly and
@@ -95,7 +100,7 @@ const corpusOf = (days: number, dailyScore = MEASURED_DAILY_SCORE): Sourced[] =>
   return rows;
 };
 
-const counterOf = (rows: Sourced[]) => counterFrom(normalizedSignal(rows, NOW));
+const counterOf = (rows: Sourced[]) => counterAt(normalizedSignal(rows, NOW));
 
 // The bug: the raw sum reads "how many days of history do we hold", not "how
 // much risk is there". A database seeded yesterday published 26 against a
@@ -109,7 +114,7 @@ test('a young corpus and a full one read the same on the same daily rate', () =>
 // The regression this replaces, kept as the contrast: on the raw sum the same
 // two depths are more than ten points apart on the gauge, all of it history.
 test('the raw sum is what made corpus depth look like risk', () => {
-  const raw = (days: number) => counterFrom(decayedSignal(corpusOf(days), NOW));
+  const raw = (days: number) => counterAt(decayedSignal(corpusOf(days), NOW));
   expect(raw(30) - raw(1)).toBeGreaterThan(10);
 });
 

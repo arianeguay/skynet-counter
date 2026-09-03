@@ -4,7 +4,7 @@ version: 1
 
 stages:
   # One sub-pipeline run per feed. The list is the pipeline input's, so adding a
-  # feed is a `default.input.yaml` edit and nothing else — the five near-identical
+  # feed is a `<domain>.input.yaml` edit and nothing else — the five near-identical
   # stages this replaced had to keep their names in step with a table in
   # fetch-feed.ts, and every hourly sweep failed the once they did not (STU-1191).
   - map: fetch

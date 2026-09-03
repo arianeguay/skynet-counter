@@ -2,9 +2,21 @@ name: new-articles
 version: 1
 schema:
   required_fields:
+    - domain
+    - keyword_weights
+    - domain_guidance
     - new_count
     - articles
   fields:
+    domain:
+      type: string
+    # The scorer reads its weights and its judgement notes out of this stage
+    # rather than out of its own prompt, so a dedupe run that omits them leaves
+    # the model with no list at all — required, not optional (STU-1213).
+    keyword_weights:
+      type: object
+    domain_guidance:
+      type: string
     new_count:
       type: integer
     articles:

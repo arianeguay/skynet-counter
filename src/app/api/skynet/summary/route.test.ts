@@ -8,11 +8,16 @@ process.env.SKYNET_DB = join(dir, 'skynet.db');
 
 const { GET } = await import('./route');
 const { openDb } = await import('@/lib/db');
+const { DEFAULT_DOMAIN } = await import('@/lib/domains');
 
 function setCounter(value: number, updatedAt: string) {
   const db = openDb();
   try {
-    db.query('INSERT OR REPLACE INTO counter (id, value, updated_at) VALUES (1, ?, ?)').run(value, updatedAt);
+    db.query('INSERT OR REPLACE INTO counter (domain, value, updated_at) VALUES (?, ?, ?)').run(
+      DEFAULT_DOMAIN,
+      value,
+      updatedAt
+    );
   } finally {
     db.close();
   }

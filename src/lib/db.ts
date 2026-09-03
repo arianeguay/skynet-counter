@@ -8,6 +8,7 @@ export function dbPath(): string {
 }
 
 export interface ArticleRow {
+  domain: string;
   url: string;
   title: string;
   source: string;
@@ -74,12 +75,102 @@ export interface CounterSnapshot {
   feedErrors: FeedError[];
 }
 
+function columnsOf(db: Database, table: string): string[] {
+  return db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().map((r) => r.name);
+}
+
+// The one migration this schema has. Every other state change in this repo went
+// into a new table precisely to avoid needing one, but partitioning by domain is
+// not new state: it labels rows that already exist, and the only copy of that
+// history is the live volume behind the published counter. A new table would
+// leave the old rows unlabelled and every read joining two shapes.
+//
+// `url` alone can no longer be the key. Two domains can legitimately pull the
+// same article, and under a global key the second one's `INSERT OR IGNORE` drops
+// it while its own `score IS NOT NULL` index never sees it — so `dedupe` would
+// re-offer and re-hydrate that URL every sweep, forever.
+//
+// Guarded on `articles.domain`, so it runs once and is a no-op on a database
+// created fresh from the definitions above.
+function migrateToDomains(db: Database): void {
+  if (columnsOf(db, 'articles').includes('domain')) return;
+
+  // The slug below is written out rather than taken from DEFAULT_DOMAIN: it
+  // states what the stored rows already are, and must keep saying so if the
+  // default ever moves to another domain.
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE articles_migrating (
+        domain           TEXT NOT NULL,
+        url              TEXT NOT NULL,
+        title            TEXT NOT NULL,
+        source           TEXT NOT NULL,
+        published_at     TEXT NOT NULL,
+        summary          TEXT NOT NULL DEFAULT '',
+        score            INTEGER,
+        matched_keywords TEXT,
+        evidence         TEXT,
+        scored_at        TEXT,
+        PRIMARY KEY (domain, url)
+      );
+      INSERT INTO articles_migrating
+        SELECT 'cybersecurite', url, title, source, published_at, summary,
+               score, matched_keywords, evidence, scored_at
+        FROM articles;
+      DROP TABLE articles;
+      ALTER TABLE articles_migrating RENAME TO articles;
+
+      CREATE TABLE feed_sweeps_migrating (
+        domain       TEXT NOT NULL,
+        source       TEXT NOT NULL,
+        swept_at     TEXT NOT NULL,
+        error        TEXT,
+        pages_unread INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (domain, source, swept_at)
+      );
+      INSERT INTO feed_sweeps_migrating
+        SELECT 'cybersecurite', source, swept_at, error, pages_unread FROM feed_sweeps;
+      DROP TABLE feed_sweeps;
+      ALTER TABLE feed_sweeps_migrating RENAME TO feed_sweeps;
+
+      CREATE TABLE unread_pages_migrating (
+        domain   TEXT NOT NULL,
+        url      TEXT NOT NULL,
+        source   TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        first_at TEXT NOT NULL,
+        last_at  TEXT NOT NULL,
+        PRIMARY KEY (domain, url)
+      );
+      INSERT INTO unread_pages_migrating
+        SELECT 'cybersecurite', url, source, attempts, first_at, last_at FROM unread_pages;
+      DROP TABLE unread_pages;
+      ALTER TABLE unread_pages_migrating RENAME TO unread_pages;
+
+      -- The counter's old shape is a single row pinned by CHECK (id = 1), which
+      -- no ALTER can widen. Its value is recomputed every sweep, so only the
+      -- deploy-to-first-sweep gap needs it carried over; without that the site
+      -- reads 0 rather than its real number until the next sweep lands.
+      CREATE TABLE counter_migrating (
+        domain     TEXT PRIMARY KEY,
+        value      REAL NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO counter_migrating
+        SELECT 'cybersecurite', value, updated_at FROM counter WHERE id = 1;
+      DROP TABLE counter;
+      ALTER TABLE counter_migrating RENAME TO counter;
+    `);
+  })();
+}
+
 export function openDb(): Database {
   const db = new Database(dbPath(), { create: true });
   db.exec('PRAGMA journal_mode = WAL');
   db.exec(`
     CREATE TABLE IF NOT EXISTS articles (
-      url              TEXT PRIMARY KEY,
+      domain           TEXT NOT NULL,
+      url              TEXT NOT NULL,
       title            TEXT NOT NULL,
       source           TEXT NOT NULL,
       published_at     TEXT NOT NULL,
@@ -87,29 +178,37 @@ export function openDb(): Database {
       score            INTEGER,
       matched_keywords TEXT,
       evidence         TEXT,
-      scored_at        TEXT
+      scored_at        TEXT,
+      PRIMARY KEY (domain, url)
     );
-    CREATE INDEX IF NOT EXISTS articles_scored_at ON articles(scored_at DESC);
     CREATE TABLE IF NOT EXISTS counter (
-      id         INTEGER PRIMARY KEY CHECK (id = 1),
+      domain     TEXT PRIMARY KEY,
       value      REAL NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS feed_sweeps (
+      domain       TEXT NOT NULL,
       source       TEXT NOT NULL,
       swept_at     TEXT NOT NULL,
       error        TEXT,
       pages_unread INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (source, swept_at)
+      PRIMARY KEY (domain, source, swept_at)
     );
-    CREATE INDEX IF NOT EXISTS feed_sweeps_swept_at ON feed_sweeps(swept_at DESC);
     CREATE TABLE IF NOT EXISTS unread_pages (
-      url      TEXT PRIMARY KEY,
+      domain   TEXT NOT NULL,
+      url      TEXT NOT NULL,
       source   TEXT NOT NULL,
       attempts INTEGER NOT NULL,
       first_at TEXT NOT NULL,
-      last_at  TEXT NOT NULL
+      last_at  TEXT NOT NULL,
+      PRIMARY KEY (domain, url)
     );
+  `);
+  migrateToDomains(db);
+  // Created after the migration, which drops and renames the tables they index.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS articles_scored_at ON articles(domain, scored_at DESC);
+    CREATE INDEX IF NOT EXISTS feed_sweeps_swept_at ON feed_sweeps(domain, swept_at DESC);
   `);
   // `feed_health` held one row per source with the current error and the start of
   // the failure run. Every fact in it is the newest `feed_sweeps` row for that
@@ -143,10 +242,12 @@ interface SweepRow {
 // read rather than just the window, because `since` has to reach past it — a feed
 // down for a fortnight has no successful sweep inside 24 hours to date the run
 // from.
-export function readFeedErrors(db: Database, now = Date.now()): FeedError[] {
+export function readFeedErrors(db: Database, domain: string, now = Date.now()): FeedError[] {
   const rows = db
-    .query<SweepRow, []>('SELECT source, swept_at, error, pages_unread FROM feed_sweeps ORDER BY source, swept_at')
-    .all();
+    .query<SweepRow, [string]>(
+      'SELECT source, swept_at, error, pages_unread FROM feed_sweeps WHERE domain = ? ORDER BY source, swept_at'
+    )
+    .all(domain);
 
   const bySource = new Map<string, SweepRow[]>();
   for (const row of rows) {
@@ -190,18 +291,20 @@ export function readFeedErrors(db: Database, now = Date.now()): FeedError[] {
   );
 }
 
-export function readSnapshot(limit = 40): CounterSnapshot {
+export function readSnapshot(domain: string, limit = 40): CounterSnapshot {
   const db = openDb();
   try {
     const counter = db
-      .query<{ value: number; updated_at: string }, []>('SELECT value, updated_at FROM counter WHERE id = 1')
-      .get();
-    const rows = db
-      .query<ArticleRow, [number]>(
-        'SELECT * FROM articles WHERE score IS NOT NULL ORDER BY published_at DESC LIMIT ?'
+      .query<{ value: number; updated_at: string }, [string]>(
+        'SELECT value, updated_at FROM counter WHERE domain = ?'
       )
-      .all(limit);
-    const feedErrors = readFeedErrors(db);
+      .get(domain);
+    const rows = db
+      .query<ArticleRow, [string, number]>(
+        'SELECT * FROM articles WHERE domain = ? AND score IS NOT NULL ORDER BY published_at DESC LIMIT ?'
+      )
+      .all(domain, limit);
+    const feedErrors = readFeedErrors(db, domain);
     return {
       counter: counter?.value ?? 0,
       updatedAt: counter?.updated_at ?? new Date(0).toISOString(),
@@ -215,14 +318,16 @@ export function readSnapshot(limit = 40): CounterSnapshot {
 
 // The counter row on its own. `readSnapshot` is the wrong shape for a caller
 // that wants the number: it reads 40 articles, parses each one's keyword JSON
-// and queries `feed_health` to answer it. The desktop widget polls every 15
+// and derives the feed faults to answer it. The desktop widget polls every 15
 // minutes and draws two fields, so it gets its own query.
-export function readCounter(): Pick<CounterSnapshot, 'counter' | 'updatedAt'> {
+export function readCounter(domain: string): Pick<CounterSnapshot, 'counter' | 'updatedAt'> {
   const db = openDb();
   try {
     const counter = db
-      .query<{ value: number; updated_at: string }, []>('SELECT value, updated_at FROM counter WHERE id = 1')
-      .get();
+      .query<{ value: number; updated_at: string }, [string]>(
+        'SELECT value, updated_at FROM counter WHERE domain = ?'
+      )
+      .get(domain);
     return {
       counter: counter?.value ?? 0,
       updatedAt: counter?.updated_at ?? new Date(0).toISOString(),

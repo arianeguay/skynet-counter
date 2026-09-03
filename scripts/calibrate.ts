@@ -2,10 +2,17 @@
 // HALF_LIFE_DAYS and DIVISOR can be chosen from measured data instead of a live
 // sweep per question. Read-only: it never scores, never writes (STU-1171).
 import { Database } from 'bun:sqlite';
-import { BASE, DIVISOR, HALF_LIFE_DAYS, HORIZON_DAYS, counterFrom, decayedSignal, normalizedSignal, steadySignal } from '@/lib/counter';
+import { BASE, HALF_LIFE_DAYS, HORIZON_DAYS, counterFrom, decayedSignal, normalizedSignal, steadySignal } from '@/lib/counter';
+import { currentDomain } from '@/lib/domains';
 
 const HALF_LIVES = [3, 5, 7, 10, 14];
 const DIVISORS = [8, 12, 16, 24, 32, 40];
+
+// Each domain calibrates against its own corpus: the divisor is picked from a
+// feed set's score per day, and pooling four domains' histories would pick one
+// constant that suits none of them (STU-1213).
+const domain = currentDomain();
+const DIVISOR = domain.divisor;
 
 const path = process.env.SKYNET_DB ?? 'data/skynet.db';
 const db = new Database(path, { readonly: true });
@@ -13,13 +20,13 @@ const now = Date.now();
 const horizon = new Date(now - HORIZON_DAYS * 864e5).toISOString();
 
 const rows = db
-  .query<{ score: number; published_at: string; source: string }, [string]>(
-    'SELECT score, published_at, source FROM articles WHERE score IS NOT NULL AND published_at >= ?'
+  .query<{ score: number; published_at: string; source: string }, [string, string]>(
+    'SELECT score, published_at, source FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
   )
-  .all(horizon);
+  .all(domain.slug, horizon);
 
 if (rows.length === 0) {
-  console.log(`${path}: no scored article inside the ${HORIZON_DAYS}-day horizon — nothing to calibrate against.`);
+  console.log(`${path}: no scored ${domain.slug} article inside the ${HORIZON_DAYS}-day horizon — nothing to calibrate against.`);
   process.exit(1);
 }
 
@@ -28,6 +35,7 @@ const scoring = scores.filter((s) => s > 0);
 const dates = rows.map((r) => r.published_at).sort();
 const spanDays = Math.max(1, (Date.parse(dates.at(-1)!) - Date.parse(dates[0]!)) / 864e5);
 
+console.log(`domain     ${domain.slug} (${domain.label})`);
 console.log(`corpus     ${path} — ${rows.length} scored articles inside the ${HORIZON_DAYS}-day horizon`);
 console.log(`span       ${dates[0]!.slice(0, 10)} .. ${dates.at(-1)!.slice(0, 10)}  (${spanDays.toFixed(1)} days)`);
 console.log(`scoring    ${scoring.length} above zero (${((100 * scoring.length) / rows.length).toFixed(0)}%), sum ${scores.reduce((t, s) => t + s, 0)}`);
@@ -40,11 +48,11 @@ console.log(`\nlive constants: BASE=${BASE} HALF_LIFE_DAYS=${HALF_LIFE_DAYS} DIV
 // window and lands 3x low.
 const today = new Date(now).toISOString().slice(0, 10);
 const feeds = db
-  .query<{ source: string; n: number; sum: number; oldest: string }, [string]>(
+  .query<{ source: string; n: number; sum: number; oldest: string }, [string, string]>(
     `SELECT source, COUNT(*) n, SUM(score) sum, MIN(published_at) oldest FROM articles
-     WHERE score IS NOT NULL AND substr(published_at, 1, 10) < ? GROUP BY source ORDER BY source`
+     WHERE domain = ? AND score IS NOT NULL AND substr(published_at, 1, 10) < ? GROUP BY source ORDER BY source`
   )
-  .all(today);
+  .all(domain.slug, today);
 
 console.log('per-feed rate over its own RSS window (today excluded, it is still filling):');
 let dailyScore = 0;

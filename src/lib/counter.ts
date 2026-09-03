@@ -1,12 +1,8 @@
 export const BASE = 12;
 export const HALF_LIFE_DAYS = 7;
-// Calibrated 2026-09-01 by `bun run calibrate` against the live corpus, whose
-// feeds publish 97 points of score a day between them. At a 7-day
-// half-life that settles at a steady signal of ~930, so /32 reads 41 on an
-// ordinary week, 70 on a doubled one, and still stops short of 100 on a tripled
-// one. The previous /8 was guessed while every article scored 0; it pegs the
-// gauge at 100 on an ordinary week and never comes back down (STU-1171).
-export const DIVISOR = 32;
+// The divisor is not here: it is calibrated from a feed set's measured score per
+// day, so it belongs to a domain rather than to the formula. Each one carries its
+// own in `src/lib/domains/<slug>.ts` (STU-1213).
 // Must stay well above HALF_LIFE_DAYS or it becomes a second decay constant:
 // at 30 days a 7-day half-life loses 5% of its weight to the cutoff, a 14-day
 // one loses 23%.
@@ -77,7 +73,7 @@ export function normalizedSignal(
   return signal;
 }
 
-export function counterFrom(signal: number, base = BASE, divisor = DIVISOR): number {
+export function counterFrom(signal: number, base: number, divisor: number): number {
   return Math.round(Math.min(100, Math.max(0, base + signal / divisor)) * 10) / 10;
 }
 
