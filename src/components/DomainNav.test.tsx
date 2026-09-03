@@ -13,9 +13,9 @@ const domain = (slug: string, label: string): Domain => ({
 });
 
 const FOUR = [
-  domain('cybersecurite', 'Cybersécurité'),
-  domain('domotique', 'Domotique'),
-  domain('ecologie', 'Écologie'),
+  domain('cybersecurite', 'Cybersecurity'),
+  domain('domotique', 'Home automation'),
+  domain('ecologie', 'Environment'),
   domain('design', 'Design'),
 ];
 
@@ -49,7 +49,7 @@ test('the domain being viewed is the only one marked current', () => {
 test('the switcher is driven by the registry, not a hardcoded list', () => {
   const two = renderToStaticMarkup(<DomainNav active="cybersecurite" domains={FOUR.slice(0, 2)} />);
 
-  expect(two).toContain('DOMOTIQUE');
-  expect(two).not.toContain('ECOLOGIE');
+  expect(two).toContain('HOME AUTOMATION');
+  expect(two).not.toContain('ENVIRONMENT');
   expect(two).not.toContain('DESIGN');
 });
