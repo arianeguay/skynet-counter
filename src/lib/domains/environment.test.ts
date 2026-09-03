@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { matchedKeywords, scoreFor } from '@/lib/keywords';
 import { cybersecurite } from './cybersecurite';
-import { ecologie } from './ecologie';
+import { environment } from './environment';
 
-const matched = (text: string) => matchedKeywords(text, ecologie.keywords);
+const matched = (text: string) => matchedKeywords(text, environment.keywords);
 
 // The words that pinned the gauge. Measuring 70 hydrated articles from the feed
 // set on 2026-09-02, a list carrying these scored 66% of them: they are what every
@@ -12,7 +12,7 @@ const matched = (text: string) => matchedKeywords(text, ecologie.keywords);
 test.each(['emissions', 'data center', 'fossil fuel', 'cooling', 'megawatt', 'drought'])(
   '"%s" is deliberately not a keyword — it fires on the whole beat',
   (word) => {
-    expect(ecologie.keywords).not.toHaveProperty(word);
+    expect(environment.keywords).not.toHaveProperty(word);
   }
 );
 
@@ -31,7 +31,7 @@ test.each([
 ])('$title scores above zero', ({ title, summary, expected }) => {
   const found = matched(`${title} ${summary}`);
   expect(found.sort()).toEqual([...expected].sort());
-  expect(scoreFor(found, ecologie.keywords)).toBeGreaterThan(0);
+  expect(scoreFor(found, environment.keywords)).toBeGreaterThan(0);
 });
 
 // Climate reporting is written to alarm, so tone must carry no score at all —
@@ -43,6 +43,6 @@ test('an alarmed headline with no quantity and no decision scores zero', () => {
 // Two gauges that move together are one gauge shown twice. The domains share a
 // subject — compute — so their tables must not share vocabulary.
 test('the écologie and cybersécurité tables have no keyword in common', () => {
-  const shared = Object.keys(ecologie.keywords).filter((k) => k in cybersecurite.keywords);
+  const shared = Object.keys(environment.keywords).filter((k) => k in cybersecurite.keywords);
   expect(shared).toEqual([]);
 });

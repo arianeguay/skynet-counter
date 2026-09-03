@@ -163,12 +163,12 @@ function insertScored(domain: string, url: string, score: number): void {
 test('a domain reads only its own articles', () => {
   tempDbPath();
   insertScored('cybersecurite', 'https://example.com/a', 20);
-  insertScored('ecologie', 'https://example.com/b', 5);
+  insertScored('environment', 'https://example.com/b', 5);
 
   expect(readSnapshot('cybersecurite').articles.map((a) => a.url)).toEqual([
     'https://example.com/a',
   ]);
-  expect(readSnapshot('ecologie').articles.map((a) => a.url)).toEqual(['https://example.com/b']);
+  expect(readSnapshot('environment').articles.map((a) => a.url)).toEqual(['https://example.com/b']);
 });
 
 // A URL both domains legitimately pull. Under the old global `url` key only one
@@ -178,10 +178,10 @@ test('a domain reads only its own articles', () => {
 test('two domains can hold the same article without colliding', () => {
   tempDbPath();
   insertScored('cybersecurite', 'https://example.com/shared', 20);
-  insertScored('ecologie', 'https://example.com/shared', 5);
+  insertScored('environment', 'https://example.com/shared', 5);
 
   expect(readSnapshot('cybersecurite').articles[0]?.score).toBe(20);
-  expect(readSnapshot('ecologie').articles[0]?.score).toBe(5);
+  expect(readSnapshot('environment').articles[0]?.score).toBe(5);
 });
 
 test('a domain reads only its own counter, and zero when it has never swept', () => {
@@ -195,7 +195,7 @@ test('a domain reads only its own counter, and zero when it has never swept', ()
   db.close();
 
   expect(readCounter('cybersecurite').counter).toBe(41.3);
-  expect(readCounter('ecologie').counter).toBe(0);
+  expect(readCounter('environment').counter).toBe(0);
 });
 
 test('a domain reads only its own feed faults', () => {
@@ -205,10 +205,10 @@ test('a domain reads only its own feed faults', () => {
     'INSERT INTO feed_sweeps (domain, source, swept_at, error, pages_unread) VALUES (?, ?, ?, ?, 0)'
   );
   insert.run('cybersecurite', 'Krebs on Security', new Date().toISOString(), 'responded 404');
-  insert.run('ecologie', 'Carbon Brief', new Date().toISOString(), 'responded 500');
+  insert.run('environment', 'Carbon Brief', new Date().toISOString(), 'responded 500');
 
   expect(readFeedErrors(db, 'cybersecurite').map((e) => e.source)).toEqual(['Krebs on Security']);
-  expect(readFeedErrors(db, 'ecologie').map((e) => e.source)).toEqual(['Carbon Brief']);
+  expect(readFeedErrors(db, 'environment').map((e) => e.source)).toEqual(['Carbon Brief']);
   db.close();
 });
 

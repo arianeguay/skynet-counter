@@ -9,8 +9,8 @@ import type { Domain } from './index';
 // carrying them scored 66% of the sample and pinned the gauge at 100 on every
 // divisor. They are deliberately absent. What is left names a quantity or a
 // decision, so its presence marks a story rather than the beat.
-export const ecologie: Domain = {
-  slug: 'ecologie',
+export const environment: Domain = {
+  slug: 'environment',
   label: 'Environment',
   tagline: 'What AI compute is taking from the grid, the air and the water table',
   // Provisional. Measured at 51.8 score/day across the feed set, which projects

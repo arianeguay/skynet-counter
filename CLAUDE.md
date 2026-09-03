@@ -43,7 +43,7 @@ tokens. Making that group run unconditionally is a cost regression, not a cleanu
 
 Add two lines to `feeds:` in `.studio/inputs/<domain>.input.yaml` —
 [cybersecurite](.studio/inputs/cybersecurite.input.yaml) or
-[ecologie](.studio/inputs/ecologie.input.yaml). Nothing else: `fetch` is a map stage
+[environment](.studio/inputs/environment.input.yaml). Nothing else: `fetch` is a map stage
 over that list, so a domain's feed table lives in exactly one place. It used to live
 in two — five near-identical stages whose names had to match a table in
 `fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
@@ -161,6 +161,19 @@ a working one until someone reads the timestamp. `page.test.tsx` asserts the exp
 below two domains, so it stays out of the way until there is something to switch to and
 needs no edit when there is.
 
+A slug is a published URL, so renaming one leaves the old path answering: `RETIRED_SLUGS`
+in [next.config.ts](next.config.ts) maps it to the new one as a permanent redirect.
+`ecologie` -> `environment` is the entry that exists, from the rename that put the tabs
+in English. [next.config.test.ts](next.config.test.ts) holds the two ways that table goes
+wrong — a retired slug that is *also* registered shadows a real counter, and one pointing
+at a domain that does not exist redirects into a 404.
+
+Renaming a slug that has already swept is more than this: the slug is the `domain`
+column's value, so its rows keep the old one and go invisible. `environment` had never
+run anywhere when it was renamed, so nothing needed moving. The next one will —
+`UPDATE articles SET domain = ? WHERE domain = ?` across `articles`, `feed_sweeps`,
+`unread_pages` and `counter`.
+
 ### The schedule
 
 [docker/run-loop.sh](docker/run-loop.sh) is the only scheduler — no cron, no systemd
@@ -193,8 +206,8 @@ in cybersecurity writing when something happened; "emissions" appears in climate
 writing always. A list built from the second kind scored 66% of a 70-article sample
 and pinned the gauge at 100 on every divisor — so `emissions`, `data center`,
 `fossil fuel` and `cooling` are deliberately absent from
-[ecologie.ts](src/lib/domains/ecologie.ts), and
-[its test](src/lib/domains/ecologie.test.ts) fails if one comes back.
+[environment.ts](src/lib/domains/environment.ts), and
+[its test](src/lib/domains/environment.test.ts) fails if one comes back.
 
 Repeat the probe before adding a domain or a feed: fetch the candidates, hydrate them
 the way `dedupe` does, run `matchedKeywords` over the result and read the per-keyword
