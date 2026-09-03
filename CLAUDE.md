@@ -168,11 +168,12 @@ in English. [next.config.test.ts](next.config.test.ts) holds the two ways that t
 wrong — a retired slug that is *also* registered shadows a real counter, and one pointing
 at a domain that does not exist redirects into a 404.
 
-Renaming a slug that has already swept is more than this: the slug is the `domain`
-column's value, so its rows keep the old one and go invisible. `environment` had never
-run anywhere when it was renamed, so nothing needed moving. The next one will —
-`UPDATE articles SET domain = ? WHERE domain = ?` across `articles`, `feed_sweeps`,
-`unread_pages` and `counter`.
+Renaming a slug is never only a redirect, because the slug is also the `domain`
+column's value: the rows keep the old one, and since every read filters on the new one
+they go **invisible** rather than wrong — no error, just a counter that has forgotten
+its history. `renameRetiredDomains()` in [db.ts](src/lib/db.ts) moves them across all
+four domain-keyed tables. It and `RETIRED_SLUGS` in `next.config.ts` are the two halves
+of one rename and are edited together.
 
 ### The schedule
 
@@ -355,8 +356,14 @@ reaches an existing database while `ADD COLUMN` would not. Retiring a table is t
 mirror image — `openDb()` drops `feed_health` on open, which costs nothing because every
 row of it was rewritten each sweep anyway.
 
-`migrateToDomains()` is the **one** exception, and the reason it had to be one is worth
-knowing before writing a second. Partitioning by domain does not add state; it labels
+`openDb()` carries two exceptions, and they are the same shape: rows that already
+exist, whose only copy is the live volume, needing to be relabelled rather than
+replaced. `renameRetiredDomains()` is the smaller — it moves a domain's rows when its
+slug is renamed, guarded on the old slug still being present so it is one write once
+rather than a write lock taken on every page render.
+
+`migrateToDomains()` is the larger, and the reason it had to exist is worth knowing
+before writing a third. Partitioning by domain does not add state; it labels
 rows that already exist, and the only copy of those rows is the volume behind the live
 counter. A new table would have left the old history unlabelled and every read joining
 two shapes. It is guarded on `articles.domain` existing, so it runs once and is a no-op
