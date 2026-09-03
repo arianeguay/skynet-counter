@@ -139,6 +139,67 @@ test('opening an already-migrated database a second time changes nothing', () =>
   expect(readCounter('cybersecurite').counter).toBe(41.3);
 });
 
+// STU-1218's domain shipped as `ecologie` and was renamed to `environment` when the
+// tabs went English. It had already swept on the live volume by then, so the rename
+// had to carry its rows: every read filters on the new slug, which makes rows left
+// under the old one invisible rather than wrong.
+test('a domain renamed after it had already swept keeps its history', () => {
+  tempDbPath();
+  const seed = openDb();
+  seed
+    .query(
+      'INSERT INTO articles (domain, url, title, source, published_at, summary, score, matched_keywords, evidence, scored_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(
+      'ecologie',
+      'https://example.com/water',
+      'Data centres tripled their water draw',
+      'Data Center Dynamics',
+      '2026-08-20T15:56:40.000Z',
+      '',
+      13,
+      '["water usage"]',
+      'tripled',
+      '2026-08-20T16:00:00.000Z'
+    );
+  seed
+    .query('INSERT INTO counter (domain, value, updated_at) VALUES (?, ?, ?)')
+    .run('ecologie', 17.1, '2026-09-03T11:13:37.956Z');
+  seed
+    .query('INSERT INTO feed_sweeps (domain, source, swept_at, error, pages_unread) VALUES (?, ?, ?, NULL, 0)')
+    .run('ecologie', 'Carbon Brief', '2026-09-03T11:13:37.956Z');
+  seed.close();
+
+  openDb().close();
+
+  const moved = readSnapshot('environment');
+  expect(moved.articles.map((a) => a.url)).toEqual(['https://example.com/water']);
+  expect(moved.counter).toBe(17.1);
+  expect(readCounter('ecologie').counter).toBe(0);
+
+  const db = openDb();
+  const sweeps = db
+    .query<{ domain: string }, []>('SELECT DISTINCT domain FROM feed_sweeps')
+    .all()
+    .map((r) => r.domain);
+  db.close();
+  expect(sweeps).toEqual(['environment']);
+});
+
+// It runs on the rows it finds and then never again, so it must not disturb a
+// database that has already been through it.
+test('reopening after the rename leaves the renamed rows alone', () => {
+  tempDbPath();
+  insertScored('environment', 'https://example.com/already', 9);
+
+  openDb().close();
+  openDb().close();
+
+  expect(readSnapshot('environment').articles.map((a) => a.url)).toEqual([
+    'https://example.com/already',
+  ]);
+});
+
 function insertScored(domain: string, url: string, score: number): void {
   const db = openDb();
   db.query(
@@ -163,12 +224,12 @@ function insertScored(domain: string, url: string, score: number): void {
 test('a domain reads only its own articles', () => {
   tempDbPath();
   insertScored('cybersecurite', 'https://example.com/a', 20);
-  insertScored('ecologie', 'https://example.com/b', 5);
+  insertScored('environment', 'https://example.com/b', 5);
 
   expect(readSnapshot('cybersecurite').articles.map((a) => a.url)).toEqual([
     'https://example.com/a',
   ]);
-  expect(readSnapshot('ecologie').articles.map((a) => a.url)).toEqual(['https://example.com/b']);
+  expect(readSnapshot('environment').articles.map((a) => a.url)).toEqual(['https://example.com/b']);
 });
 
 // A URL both domains legitimately pull. Under the old global `url` key only one
@@ -178,10 +239,10 @@ test('a domain reads only its own articles', () => {
 test('two domains can hold the same article without colliding', () => {
   tempDbPath();
   insertScored('cybersecurite', 'https://example.com/shared', 20);
-  insertScored('ecologie', 'https://example.com/shared', 5);
+  insertScored('environment', 'https://example.com/shared', 5);
 
   expect(readSnapshot('cybersecurite').articles[0]?.score).toBe(20);
-  expect(readSnapshot('ecologie').articles[0]?.score).toBe(5);
+  expect(readSnapshot('environment').articles[0]?.score).toBe(5);
 });
 
 test('a domain reads only its own counter, and zero when it has never swept', () => {
@@ -195,7 +256,7 @@ test('a domain reads only its own counter, and zero when it has never swept', ()
   db.close();
 
   expect(readCounter('cybersecurite').counter).toBe(41.3);
-  expect(readCounter('ecologie').counter).toBe(0);
+  expect(readCounter('environment').counter).toBe(0);
 });
 
 test('a domain reads only its own feed faults', () => {
@@ -205,10 +266,10 @@ test('a domain reads only its own feed faults', () => {
     'INSERT INTO feed_sweeps (domain, source, swept_at, error, pages_unread) VALUES (?, ?, ?, ?, 0)'
   );
   insert.run('cybersecurite', 'Krebs on Security', new Date().toISOString(), 'responded 404');
-  insert.run('ecologie', 'Carbon Brief', new Date().toISOString(), 'responded 500');
+  insert.run('environment', 'Carbon Brief', new Date().toISOString(), 'responded 500');
 
   expect(readFeedErrors(db, 'cybersecurite').map((e) => e.source)).toEqual(['Krebs on Security']);
-  expect(readFeedErrors(db, 'ecologie').map((e) => e.source)).toEqual(['Carbon Brief']);
+  expect(readFeedErrors(db, 'environment').map((e) => e.source)).toEqual(['Carbon Brief']);
   db.close();
 });
 

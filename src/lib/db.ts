@@ -164,6 +164,41 @@ function migrateToDomains(db: Database): void {
   })();
 }
 
+// A slug is the `domain` column's value as well as a URL, so renaming one renames
+// the rows with it — and every read filters on the new slug, which makes the old
+// rows invisible rather than wrong. `ecologie` had already swept 24 times on the
+// live volume when it became `environment`, carrying 25 scored articles and a
+// counter reading 17.1.
+//
+// Guarded on the old slug still being present, so it is one write once rather
+// than a write lock taken on every page render.
+const RENAMED_DOMAINS: readonly (readonly [from: string, to: string])[] = [
+  ['ecologie', 'environment'],
+] as const;
+
+const DOMAIN_TABLES = ['articles', 'feed_sweeps', 'unread_pages', 'counter'] as const;
+
+function renameRetiredDomains(db: Database): void {
+  for (const [from, to] of RENAMED_DOMAINS) {
+    const stale = db
+      .query<{ n: number }, [string, string, string]>(
+        `SELECT (SELECT COUNT(*) FROM articles WHERE domain = ?)
+              + (SELECT COUNT(*) FROM feed_sweeps WHERE domain = ?)
+              + (SELECT COUNT(*) FROM counter WHERE domain = ?) AS n`
+      )
+      .get(from, from, from);
+    if (!stale?.n) continue;
+
+    // A plain UPDATE, so a row already sitting under the new slug raises the
+    // primary-key conflict instead of one side being dropped silently.
+    db.transaction(() => {
+      for (const table of DOMAIN_TABLES) {
+        db.query(`UPDATE ${table} SET domain = ? WHERE domain = ?`).run(to, from);
+      }
+    })();
+  }
+}
+
 export function openDb(): Database {
   const db = new Database(dbPath(), { create: true });
   db.exec('PRAGMA journal_mode = WAL');
@@ -205,6 +240,7 @@ export function openDb(): Database {
     );
   `);
   migrateToDomains(db);
+  renameRetiredDomains(db);
   // Created after the migration, which drops and renames the tables they index.
   db.exec(`
     CREATE INDEX IF NOT EXISTS articles_scored_at ON articles(domain, scored_at DESC);

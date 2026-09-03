@@ -42,7 +42,7 @@ test('a domain renders its own counter and its own articles', async () => {
 // The partition has to survive all the way to the page, not just to `readSnapshot`.
 test('a domain does not render another domain’s articles', async () => {
   seed(DEFAULT_DOMAIN, 'https://example.com/own', 12, 'Belongs to this domain');
-  seed('ecologie', 'https://example.com/other', 99, 'Belongs to another domain');
+  seed('environment', 'https://example.com/other', 99, 'Belongs to another domain');
 
   const markup = await render(DEFAULT_DOMAIN);
 

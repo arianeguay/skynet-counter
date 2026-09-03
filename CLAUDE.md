@@ -43,7 +43,7 @@ tokens. Making that group run unconditionally is a cost regression, not a cleanu
 
 Add two lines to `feeds:` in `.studio/inputs/<domain>.input.yaml` —
 [cybersecurite](.studio/inputs/cybersecurite.input.yaml) or
-[ecologie](.studio/inputs/ecologie.input.yaml). Nothing else: `fetch` is a map stage
+[environment](.studio/inputs/environment.input.yaml). Nothing else: `fetch` is a map stage
 over that list, so a domain's feed table lives in exactly one place. It used to live
 in two — five near-identical stages whose names had to match a table in
 `fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
@@ -161,6 +161,20 @@ a working one until someone reads the timestamp. `page.test.tsx` asserts the exp
 below two domains, so it stays out of the way until there is something to switch to and
 needs no edit when there is.
 
+A slug is a published URL, so renaming one leaves the old path answering: `RETIRED_SLUGS`
+in [next.config.ts](next.config.ts) maps it to the new one as a permanent redirect.
+`ecologie` -> `environment` is the entry that exists, from the rename that put the tabs
+in English. [next.config.test.ts](next.config.test.ts) holds the two ways that table goes
+wrong — a retired slug that is *also* registered shadows a real counter, and one pointing
+at a domain that does not exist redirects into a 404.
+
+Renaming a slug is never only a redirect, because the slug is also the `domain`
+column's value: the rows keep the old one, and since every read filters on the new one
+they go **invisible** rather than wrong — no error, just a counter that has forgotten
+its history. `renameRetiredDomains()` in [db.ts](src/lib/db.ts) moves them across all
+four domain-keyed tables. It and `RETIRED_SLUGS` in `next.config.ts` are the two halves
+of one rename and are edited together.
+
 ### The schedule
 
 [docker/run-loop.sh](docker/run-loop.sh) is the only scheduler — no cron, no systemd
@@ -193,8 +207,8 @@ in cybersecurity writing when something happened; "emissions" appears in climate
 writing always. A list built from the second kind scored 66% of a 70-article sample
 and pinned the gauge at 100 on every divisor — so `emissions`, `data center`,
 `fossil fuel` and `cooling` are deliberately absent from
-[ecologie.ts](src/lib/domains/ecologie.ts), and
-[its test](src/lib/domains/ecologie.test.ts) fails if one comes back.
+[environment.ts](src/lib/domains/environment.ts), and
+[its test](src/lib/domains/environment.test.ts) fails if one comes back.
 
 Repeat the probe before adding a domain or a feed: fetch the candidates, hydrate them
 the way `dedupe` does, run `matchedKeywords` over the result and read the per-keyword
@@ -342,8 +356,14 @@ reaches an existing database while `ADD COLUMN` would not. Retiring a table is t
 mirror image — `openDb()` drops `feed_health` on open, which costs nothing because every
 row of it was rewritten each sweep anyway.
 
-`migrateToDomains()` is the **one** exception, and the reason it had to be one is worth
-knowing before writing a second. Partitioning by domain does not add state; it labels
+`openDb()` carries two exceptions, and they are the same shape: rows that already
+exist, whose only copy is the live volume, needing to be relabelled rather than
+replaced. `renameRetiredDomains()` is the smaller — it moves a domain's rows when its
+slug is renamed, guarded on the old slug still being present so it is one write once
+rather than a write lock taken on every page render.
+
+`migrateToDomains()` is the larger, and the reason it had to exist is worth knowing
+before writing a third. Partitioning by domain does not add state; it labels
 rows that already exist, and the only copy of those rows is the volume behind the live
 counter. A new table would have left the old history unlabelled and every read joining
 two shapes. It is guarded on `articles.domain` existing, so it runs once and is a no-op

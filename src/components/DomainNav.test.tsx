@@ -15,7 +15,7 @@ const domain = (slug: string, label: string): Domain => ({
 const FOUR = [
   domain('cybersecurite', 'Cybersecurity'),
   domain('domotique', 'Home automation'),
-  domain('ecologie', 'Environment'),
+  domain('environment', 'Environment'),
   domain('design', 'Design'),
 ];
 
@@ -37,11 +37,11 @@ test('every domain in the registry gets a link to its own counter', () => {
 // Without this the four tabs are indistinguishable, and a screen reader has no
 // way to say which counter is on screen.
 test('the domain being viewed is the only one marked current', () => {
-  const markup = renderToStaticMarkup(<DomainNav active="ecologie" domains={FOUR} />);
+  const markup = renderToStaticMarkup(<DomainNav active="environment" domains={FOUR} />);
   const current = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)];
 
   expect(current).toHaveLength(1);
-  expect(current[0]![0]).toContain('href="/ecologie"');
+  expect(current[0]![0]).toContain('href="/environment"');
 });
 
 // The switcher grows out of the registry, so adding a domain module is the whole
