@@ -396,6 +396,23 @@ the number as well as the log. `counter` is one row per domain, recomputed from
 `articles` on every run and never asserted by a stage. The frontend only calls
 `readSnapshot(domain)`.
 
+**A domain's first sweep can score articles the counter still ignores.** `dedupe`'s
+backlog carries in whatever `fetch` returned, and an RSS feed with a monthly cadence
+(a "Baseline digest") can hand back items from months back on the very first run —
+[readSnapshot()](src/lib/db.ts) has no horizon filter, so the signal log shows them
+with real scores. `aggregate.ts`'s history query does filter, on
+`published_at >= now - HORIZON_DAYS`, so an article outside the last 30 days
+contributes nothing to the counter however it scored.
+
+Verified on `frontend`'s first-ever sweep (2026-09-03): four articles scored — 26, 38,
+14 and 37 — all four published in April/May, all outside the horizon. Every article
+published in the last 30 days scored 0. Signal was genuinely zero, so the counter
+read exactly `BASE` and the STALLED band was correct — not a bug, and not specific to
+a progress domain: cybersecurity has the same horizon-vs-log gap, just never visible
+this starkly because its history built up sweep by sweep instead of arriving as one
+multi-month backlog. Read the article log's dates before trusting "there are scored
+articles but the counter hasn't moved" as a bug report.
+
 The formula itself lives in [src/lib/counter.ts](src/lib/counter.ts), not in
 `aggregate.ts`, so [scripts/calibrate.ts](scripts/calibrate.ts) and the tests can reach
 it without running a stage. The decay is `0.5 ** (age / HALF_LIFE_DAYS)` — it used to be
