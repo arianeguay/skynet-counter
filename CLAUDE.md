@@ -318,6 +318,15 @@ parses fine but its newest item is over three years old, and
 `theverge.com/smart-home/rss/index.xml` 404s while
 `theverge.com/rss/smart-home/index.xml` works.
 
+Reddit is not the fix either. Measured 2026-09-03: 50 posts pulled from
+r/homeautomation's RSS (`.rss` needs a browser `user-agent` — the default and the JSON
+endpoint both get a login wall or a 403), same incident-vocabulary style scored **0 of
+50 posts, 30 of 30 candidate keywords dead** — worse than the blog feeds above. The
+subreddit's "hot" sort is DIY showcases and buying advice ("Yale Smart fingerprint
+keypad any good?", "Bond Bridge device not reachable"), not incident reports, and
+whatever incident signal a subreddit does carry lives in comment threads reacting to a
+post, a shape this pipeline's paragraph-scraper can't reach regardless.
+
 ### Why design has no *risk* counter — and what it has instead
 
 Measured on 2026-09-02 against 89 hydrated articles from eight live design and
