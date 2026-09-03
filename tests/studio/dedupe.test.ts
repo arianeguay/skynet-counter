@@ -42,6 +42,28 @@ const pages = Bun.serve({
       if (recoveringRefusals-- > 0) return new Response('gone', { status: 503 });
       return html('<p>Their agent exploited 87% of a benchmark of known vulnerability reports.</p>');
     }
+    // The three shapes measured on live pages for STU-1274, all outside <p>: a
+    // related-article rail, the author bio, and the tag strip under the body.
+    if (url.pathname === '/rail') {
+      return new Response(
+        '<html><body><article>' +
+          '<p>The maintainers shipped a fix after a self-improving agent rewrote its own limits.</p>' +
+          '<div class="related"><h3>Related</h3><ul>' +
+          '<li><a href="/x">Critical flaw allows remote code execution on 40,000 servers</a></li>' +
+          '<li><a href="/y">Ransomware crew leaks hospital records</a></li>' +
+          '</ul></div>' +
+          '<div class="tags">Zero-day Backdoor Vulnerability Jailbreak</div>' +
+          '<div class="bio">Bill covers open-source, malware, data breach incidents and hacks.</div>' +
+          '</article></body></html>',
+        { headers: { 'content-type': 'text/html' } }
+      );
+    }
+    if (url.pathname === '/no-paragraphs') {
+      return new Response(
+        '<html><body><div>Their agent exploited a zero-day, with no paragraph in sight.</div></body></html>',
+        { headers: { 'content-type': 'text/html' } }
+      );
+    }
     if (url.pathname === '/chrome') {
       return new Response(
         '<html><head><style>.n{color:red}</style></head><body><nav>Ransomware</nav>' +
@@ -470,5 +492,56 @@ test(
     const rows = db.query<{ url: string }, []>('SELECT url FROM unread_pages').all();
     db.close();
     expect(rows).toEqual([]);
+  })
+);
+
+// STU-1274: stripping chrome left the rails publishers put *inside* the body. A
+// related-article list carries the whole keyword table, so an article picked up
+// weight from the stories it merely sat next to — and the validator agreed,
+// because it re-reads the same contaminated text.
+// A neutral title, so what the assertions see comes from the page rather than from
+// the headline — `candidate_keywords` is scanned over both.
+const railed = (path: string) => ({
+  ...linked(path),
+  title: 'A quiet headline with no scoring vocabulary in it',
+});
+
+test(
+  'keywords from the related-links rail, the tag strip and the author bio are not scored',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [railed('/rail')]);
+
+    // The one keyword that is actually in the article's prose.
+    expect(out.articles[0]?.candidate_keywords).toEqual(['self-improving']);
+    // Present in the markup, absent from the prose, and each one measured leaking
+    // on a real page: the rail, the tag strip, the bio.
+    for (const leaked of ['remote code execution', 'ransomware', 'zero-day', 'backdoor', 'breach']) {
+      expect(out.articles[0]?.candidate_keywords).not.toContain(leaked);
+    }
+  })
+);
+
+// The prose still has to survive the cut — a filter that drops the article too is
+// not a fix.
+test(
+  'the article’s own paragraphs are what reaches the scorer',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [railed('/rail')]);
+
+    expect(out.articles[0]?.summary).toContain('rewrote its own limits');
+    expect(out.articles[0]?.summary).not.toContain('Related');
+  })
+);
+
+// Measured on 35 live pages, none lacked paragraphs — but a publisher can change,
+// and the failure has to be the safe one: held back and retried, like a page that
+// did not load, rather than scored on whatever else the markup held.
+test(
+  'a page with no paragraph at all is held back rather than scored on its markup',
+  withDb(async (dbPath) => {
+    const out = await runDedupe(dbPath, [railed('/no-paragraphs')]);
+
+    expect(out.articles).toEqual([]);
+    expect(out.pages_unread).toEqual({ arstechnica: 1 });
   })
 );

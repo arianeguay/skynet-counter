@@ -56,6 +56,20 @@ whose "Article URL / Comments URL / Points" boilerplate scores a structural zero
 not a threshold — Ars Technica's summaries run 9-15 words, the same range as HN's
 boilerplate, so no word count separates them.
 
+Only the article's **paragraphs** are scored. Stripping `nav`/`header`/`footer`/`aside`
+removes site chrome but leaves the rails publishers put *inside* the body, and those
+carry the keyword table without describing the article: measured over 35 live pages,
+BleepingComputer's author bio ("covering ... data breach incidents") scored `breach` on
+every article by that writer, a tag strip supplied `remote code execution`, and The
+Hacker News' category label above the body supplied `vulnerability` (STU-1274).
+
+The cut is `<p>` rather than a list of class names — those differ per publisher and
+change without notice, while prose is in paragraphs and rails are links and headings.
+It cost nothing on that sample: no page lost its article, and the only matches it
+removed were those three. A page with no `<p>` yields nothing and is held back like one
+that failed to load, so a publisher that stops using paragraphs shows up in that feed's
+`pages_unread` rather than silently scoring its markup.
+
 **`dedupe` does the hydrating, not `fetch`.** It runs after the seen-index filter and
 the `MAX_PER_RUN` cap, so a page is fetched once rather than once an hour for as long
 as its item stays in the publisher's window — `fetch` pulls ~110 items a sweep and all
