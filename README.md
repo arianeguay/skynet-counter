@@ -66,7 +66,7 @@ route can import `bun:sqlite`. Running them under Node will fail at that import.
 | Path | What it serves |
 |---|---|
 | `/` | redirect to the default domain |
-| `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite` today |
+| `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite`, `/ecologie` |
 | `/api/skynet` | the default domain's full snapshot as JSON |
 | `/api/skynet/summary` | the default domain's counter, timestamp and band, for the desktop widget |
 
@@ -277,7 +277,9 @@ ubersicht`) and no Xcode, no signing and no Apple account;
 One table per domain, in `src/lib/domains/<slug>.ts`. The table below is the
 cybersecurity domain's, defined in
 [src/lib/domains/cybersecurite.ts](src/lib/domains/cybersecurite.ts) — change them
-there. The validator recomputes from that module; the scorer is handed the same table
+there. The écologie domain carries its own in
+[src/lib/domains/ecologie.ts](src/lib/domains/ecologie.ts), picked by measuring which
+words mark a story rather than the beat. The validator recomputes from that module; the scorer is handed the same table
 through the `dedupe` stage output, so neither carries a copy of its own.
 
 | Keyword | Weight | | Keyword | Weight |

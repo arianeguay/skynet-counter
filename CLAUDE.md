@@ -41,13 +41,12 @@ tokens. Making that group run unconditionally is a cost regression, not a cleanu
 
 ### Adding a feed
 
-Add two lines to `feeds:` in `.studio/inputs/<domain>.input.yaml` — for the only
-domain that exists today,
-[.studio/inputs/cybersecurite.input.yaml](.studio/inputs/cybersecurite.input.yaml).
-Nothing else: `fetch` is a map stage over that list, so a domain's feed table lives in
-exactly one place. It used to live in two — five near-identical stages whose names had
-to match a table in `fetch-feed.ts` — and every hourly sweep failed the once they
-diverged (STU-1191).
+Add two lines to `feeds:` in `.studio/inputs/<domain>.input.yaml` —
+[cybersecurite](.studio/inputs/cybersecurite.input.yaml) or
+[ecologie](.studio/inputs/ecologie.input.yaml). Nothing else: `fetch` is a map stage
+over that list, so a domain's feed table lives in exactly one place. It used to live
+in two — five near-identical stages whose names had to match a table in
+`fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
 
 Every feed is scored against its linked page rather than its RSS summary. That is
 unconditional, and there is no per-feed opt-out: measuring all five feeds on 2026-09-01
@@ -183,6 +182,25 @@ a default in shell is a second copy of `DEFAULT_DOMAIN` that cannot be read from
 TypeScript, and a stale one would sweep a domain nothing serves.
 [tests/docker/run-loop.test.ts](tests/docker/run-loop.test.ts) drives the script with a
 stub `studio` on PATH, so the cadence is provable without Docker or a paid run.
+
+### Picking a domain's keywords
+
+Both tables were picked by measuring, and the écologie one is why the method is
+written down: the words that first suggest themselves are the worst ones.
+
+A keyword earns its place by marking a *story*, not a *subject*. "zero-day" appears
+in cybersecurity writing when something happened; "emissions" appears in climate
+writing always. A list built from the second kind scored 66% of a 70-article sample
+and pinned the gauge at 100 on every divisor — so `emissions`, `data center`,
+`fossil fuel` and `cooling` are deliberately absent from
+[ecologie.ts](src/lib/domains/ecologie.ts), and
+[its test](src/lib/domains/ecologie.test.ts) fails if one comes back.
+
+Repeat the probe before adding a domain or a feed: fetch the candidates, hydrate them
+the way `dedupe` does, run `matchedKeywords` over the result and read the per-keyword
+hit counts. A keyword firing on 40%+ of articles is measuring the beat. A keyword
+firing zero times is dead weight, and a table of those is a counter stuck at its
+floor.
 
 ### Why there is no domotique domain
 

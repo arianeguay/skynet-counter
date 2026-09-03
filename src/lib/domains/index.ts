@@ -1,4 +1,5 @@
 import { cybersecurite } from './cybersecurite';
+import { ecologie } from './ecologie';
 
 export interface Domain {
   // The route segment, the `SKYNET_DOMAIN` value and the `domain` column's
@@ -26,7 +27,7 @@ export interface Domain {
 // module here: the `fetch` map stage fans out over `input.feeds`, and Studio
 // reads YAML, not TypeScript. A second copy in this directory is the trap
 // STU-1191 already cost a sweep — the feed table stays in one place per domain.
-export const DOMAINS: Domain[] = [cybersecurite];
+export const DOMAINS: Domain[] = [cybersecurite, ecologie];
 
 export const DEFAULT_DOMAIN = cybersecurite.slug;
 
