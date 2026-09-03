@@ -230,6 +230,32 @@ hit counts. A keyword firing on 40%+ of articles is measuring the beat. A keywor
 firing zero times is dead weight, and a table of those is a counter stuck at its
 floor.
 
+### Direction, and why it is the scorer's call
+
+A keyword names a thing going wrong, and an article can be about that thing being
+fixed. "Reducing on-site water usage" and "the best protection yet against account
+takeovers" both matched and both scored, which is the counter reading vocabulary
+rather than direction (STU-1277).
+
+The obvious deterministic fix — reject a match with a mitigation word just before it —
+was measured against the live corpus and is **wrong**. Eight of 70 scored articles had
+one within five words of a kept keyword, and only two were genuinely about a remedy. A
+vulnerability that was silently mitigated was still a vulnerability; refusing to pay a
+ransom is still a ransomware story. Suppressing on that signal would have cost six real
+incidents to catch two false ones — and those six are the stories the counter exists
+for.
+
+So direction is rule 2's job, named explicitly in the prompt and in each domain's
+`guidance`. The discriminator is not the phrase but the article: *is it reporting the
+problem, or the remedy?*
+
+`mitigatedMatches()` in [keywords.ts](src/lib/keywords.ts) keeps the measurement
+useful without acting on it — `validate-scores` emits a note listing kept keywords that
+read as mitigated, so a wrong judgement shows up in the run log instead of being
+silent. It reports and must never reject;
+[mitigation.test.ts](src/lib/mitigation.test.ts) holds all eight measured cases,
+including the six that must still score.
+
 ### Why there is no domotique domain
 
 Measured on 2026-09-02 (STU-1217). The domain fails differently from the ones that

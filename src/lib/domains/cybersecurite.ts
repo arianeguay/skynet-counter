@@ -47,5 +47,11 @@ export const cybersecurite: Domain = {
     'Keywords that are present but describe no risk, as they keep appearing here:',
     '"agentic" in a product tagline, "breach" in a contract-law story, "deceptive"',
     'in a story about advertising practices.',
+    '',
+    'Direction is the subtler case. A defence named after the attack it stops —',
+    '"the best protection yet against account takeovers" — scores nothing. But an',
+    'incident that was patched afterwards is still an incident: a vulnerability that',
+    'was silently mitigated was real, and refusing to pay a ransom is still a',
+    'ransomware story. Ask whether the article reports the problem or the remedy.',
   ].join('\n'),
 };

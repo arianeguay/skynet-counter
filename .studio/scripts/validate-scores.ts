@@ -1,5 +1,5 @@
 import { readContext, emit, type RawArticle } from './rss.ts';
-import { matchedKeywords, scoreFor } from '../../src/lib/keywords.ts';
+import { matchedKeywords, mitigatedMatches, scoreFor } from '../../src/lib/keywords.ts';
 import { currentDomain } from '../../src/lib/domains/index.ts';
 
 // Read from the domain's own module, never from the `keyword_weights` the dedupe
@@ -33,6 +33,7 @@ const byUrl = new Map(candidates.map((a) => [a.url, a]));
 const issues: string[] = [];
 const omissions: string[] = [];
 const declarations: string[] = [];
+const mitigated: string[] = [];
 
 if (scored.length !== candidates.length) {
   issues.push(`Scored ${scored.length} articles but ${candidates.length} were submitted — score every one, exactly once.`);
@@ -104,6 +105,14 @@ for (const s of scored) {
     );
   }
 
+  // Reported, never rejected. A keyword reading as mitigated is usually still
+  // earned — the incident happened and was fixed afterwards — so this is a line in
+  // the run log for a human, not a verdict (STU-1277).
+  const reads = mitigatedMatches(`${source.title} ${source.summary}`, keywords);
+  if (reads.length > 0) {
+    mitigated.push(`${label}: ${reads.map((k) => `"${k}"`).join(', ')}`);
+  }
+
   const expected = scoreFor(keywords, weights);
   if (s.score !== expected) {
     issues.push(`${label}: score ${s.score} does not match the sum of its matched keyword weights (${expected}).`);
@@ -124,6 +133,11 @@ if (omissions.length > 0) {
 }
 if (declarations.length > 0) {
   notes.push(`${declarations.length} articles declared a deliberate drop — ${declarations.join('; ')}.`);
+}
+if (mitigated.length > 0) {
+  notes.push(
+    `${mitigated.length} articles kept a keyword that reads as mitigated — ${mitigated.join('; ')}. Check the article reports the problem rather than the remedy.`
+  );
 }
 
 emit({

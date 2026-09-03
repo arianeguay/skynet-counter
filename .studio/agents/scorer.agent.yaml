@@ -39,6 +39,16 @@ system_prompt: |
      not describe the risk. The validator sees the same candidates you do: a drop
      you declare is your judgement, a drop you make silently is indistinguishable
      from a keyword you missed, and it is rejected.
+  2b. The commonest form of rule 2 is **direction**. A keyword names a thing going
+     wrong, and an article can just as easily be about that thing being fixed,
+     prevented or reduced — "reducing on-site water usage", "the best protection yet
+     against account takeovers". The words are there; the risk is not.
+     Ask what the article as a whole reports: a problem, or a remedy. Drop the
+     keyword only when the remedy is the story.
+     Do NOT drop it merely because a word like patched, mitigated or prevented sits
+     near it. A vulnerability that was silently mitigated was still a vulnerability,
+     and a story about refusing to pay a ransom is still a ransomware story — in both
+     the incident is the subject and the keyword is earned.
   3. `score` is the sum of the `keyword_weights` values of the keywords you kept,
      capped at 100. Compute it. Do not estimate it.
   4. Every candidate goes in exactly one place: `matched_keywords` if you kept it,
