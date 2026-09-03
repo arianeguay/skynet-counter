@@ -61,6 +61,19 @@ bun dev              # http://localhost:3000
 `bun dev`, `bun run build` and `bun start` all go through `bun --bun` so the API
 route can import `bun:sqlite`. Running them under Node will fail at that import.
 
+## Routes
+
+| Path | What it serves |
+|---|---|
+| `/` | redirect to the default domain |
+| `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite` today |
+| `/api/skynet` | the default domain's full snapshot as JSON |
+| `/api/skynet/summary` | the default domain's counter, timestamp and band, for the desktop widget |
+
+The domain switcher above the gauge is built from the registry in
+`src/lib/domains/`, so it appears once a second domain exists and lists exactly the
+ones that do.
+
 ## Pipeline shape
 
 | Stage | Executor | What it does |

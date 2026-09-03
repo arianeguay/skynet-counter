@@ -141,8 +141,25 @@ Do not mirror the feed list into the domain module. Two copies that have to agre
 what STU-1191 already cost a sweep.
 
 Adding a domain is: a module under `src/lib/domains/`, an entry in its `DOMAINS`
-array, an input file named for the slug. Nothing in `db.ts`, `dedupe.ts` or
-`aggregate.ts` needs touching — they read `currentDomain()`.
+array, an input file named for the slug. Nothing in `db.ts`, `dedupe.ts`,
+`aggregate.ts` or the frontend needs touching — the scripts read `currentDomain()`
+and the site reads the registry.
+
+### Routes
+
+`/<slug>` is the counter, `src/app/[domaine]/page.tsx`, and `/` redirects to
+`DEFAULT_DOMAIN` rather than being a second copy of it. A slug no module defines is a
+404: an unknown domain rendering an empty gauge would publish 0, which is what a quiet
+week looks like.
+
+That route must stay `force-dynamic` and must **not** gain a `generateStaticParams`.
+Adding one makes Next prerender each domain at build time, so the site serves the
+counter as it stood when the image was built — and a frozen counter looks exactly like
+a working one until someone reads the timestamp. `page.test.tsx` asserts the export.
+
+[DomainNav](src/components/DomainNav.tsx) is driven by `DOMAINS` and renders nothing
+below two domains, so it stays out of the way until there is something to switch to and
+needs no edit when there is.
 
 ### The keyword table
 
