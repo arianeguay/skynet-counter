@@ -308,6 +308,33 @@ rather than `--color-signal`, because it is the one place both polarities are sh
 at once — remapping it would make it agree with whichever domain's page it happened
 to render on, which is exactly the thing it exists to be independent of.
 
+**A domain must be mature before it can be compared to itself.** Shipped without
+this and caught it on the live site the same day (STU-1283): `environment`,
+`frontend` and `smarthome` all clamped to the maximum deviation simultaneously,
+which should be rare. Their `counterHistory` trajectories were mostly flat `BASE`
+followed by one real point — not because those domains were quiet, but because
+nothing had swept them yet, and the first real reading after an artificial flat
+run always measures as a wild swing.
+
+The obvious fix — require a domain's oldest article to be `BALANCE_MATURITY_DAYS`
+(`HORIZON_DAYS + HISTORY_WINDOW_DAYS`, 44) old — is also wrong, and for a reason
+worth remembering before reaching for `published_at` as an age proxy anywhere in
+this codebase: a domain's first sweep can carry in a backlog of months-old items
+(the same stranded-row carry STU-1206 built), so `published_at` says how old the
+*news* is, not how long this pipeline has actually been watching for it. Checked
+directly: on 2026-09-03, every domain's first `scored_at` was within the last
+three days — `cybersecurite` included — despite three of the four having
+`published_at` histories reaching back months.
+
+`readBalance()` gates on `MIN(scored_at)` instead, the one field a backlog cannot
+antedate because it is written at sweep time regardless of when the article was
+published. On that date, **no domain in the registry passed the gate** — the
+whole site was too young, `cybersecurite`'s two operational days included — so
+the band correctly showed nothing rather than a confident, artifact-driven
+verdict. That is the cost of the fix, not a bug in it: expect it to stay empty
+for `BALANCE_MATURITY_DAYS` from each domain's actual first sweep, which is
+longer than any divisor's own "provisional" warm-up.
+
 ### Direction, and why it is the scorer's call
 
 A keyword names a thing going wrong, and an article can be about that thing being

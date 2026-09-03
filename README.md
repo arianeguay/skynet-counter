@@ -78,9 +78,11 @@ ones that do.
 Below it, every page also carries a **balance band** — how the risk domains are
 reading against the progress ones, each compared to its own recent normal rather
 than to another domain's raw counter (two counters on different divisors are not
-directly comparable). It renders nothing until there is at least one domain on each
-side. See CLAUDE.md's "The balance band" for why a domain is measured against
-itself rather than against the others.
+directly comparable). It renders nothing until there is at least one *mature* domain
+on each side — a domain only counts once it has been actually swept, not merely
+published about, for `HORIZON_DAYS + HISTORY_WINDOW_DAYS` (44) days, so expect it
+empty for weeks after a fresh deploy. See CLAUDE.md's "The balance band" for why a
+domain is measured against itself rather than against the others.
 
 ## Pipeline shape
 

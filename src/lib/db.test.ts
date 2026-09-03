@@ -3,7 +3,7 @@ import { afterEach, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDb, readBalance, readCounter, readFeedErrors, readHostOutage, readSnapshot } from '@/lib/db';
+import { BALANCE_MATURITY_DAYS, openDb, readBalance, readCounter, readFeedErrors, readHostOutage, readSnapshot } from '@/lib/db';
 import { DEFAULT_DOMAIN, DOMAINS, currentDomain, domainBySlug } from '@/lib/domains';
 
 const dirs: string[] = [];
@@ -385,26 +385,92 @@ test('an unset SKYNET_DOMAIN is the default domain', () => {
 // STU-1280: the balance reads the whole registry from real rows, scoped per
 // domain exactly like every other read here — a burst in one domain must not
 // move another's deviation.
-test('the balance reads every registered domain, scoped to its own articles', () => {
+function seedArticle(domain: string, daysAgo: number, score: number, i = 0): void {
+  const db = openDb();
+  const at = new Date(Date.now() - daysAgo * 864e5).toISOString();
+  db.query(
+    'INSERT INTO articles (domain, url, title, source, published_at, summary, score, matched_keywords, evidence, scored_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(domain, `https://example.com/${domain}-${daysAgo}-${i}`, `${domain} story`, 'A Feed', at, '', score, '[]', '', at);
+  db.close();
+}
+
+// A domain past the maturity bar, with a quiet run and a burst today — the
+// shape `normalizedDeviation`'s own unit tests already exercise, reused here
+// to prove `readBalance` wires a real, old-enough domain through correctly.
+function seedMatureDomain(domain: string, burstScore: number): void {
+  seedArticle(domain, BALANCE_MATURITY_DAYS + 10, 3);
+  seedArticle(domain, 5, 3);
+  seedArticle(domain, 0, burstScore);
+}
+
+test('the balance reads every mature domain, scoped to its own articles', () => {
   tempDbPath();
   const risk = DOMAINS.find((d) => d.polarity === 'risk')!;
   const progress = DOMAINS.find((d) => d.polarity === 'progress')!;
 
-  const db = openDb();
-  const now = new Date().toISOString();
-  db.query(
-    'INSERT INTO articles (domain, url, title, source, published_at, summary, score, matched_keywords, evidence, scored_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(risk.slug, 'https://example.com/risk-burst', 'A burst today', 'A Feed', now, '', 80, '[]', '', now);
-  db.close();
+  seedMatureDomain(risk.slug, 80);
+  seedMatureDomain(progress.slug, 3); // same quiet score as its own baseline — no real burst
 
   const balance = readBalance();
-  expect(balance.map((d) => d.slug).sort()).toEqual(DOMAINS.map((d) => d.slug).sort());
+  expect(balance.map((d) => d.slug).sort()).toEqual([progress.slug, risk.slug].sort());
 
   const riskDeviation = balance.find((d) => d.slug === risk.slug)!;
   expect(riskDeviation.polarity).toBe('risk');
   expect(riskDeviation.deviation).toBeGreaterThan(0);
 
-  // Nothing was seeded for it, so its history is flat at BASE — no burst to see.
+  // Domain isolation, the same property `readSnapshot` already guarantees: a
+  // real burst in one domain reads far more elevated than a quiet day in another.
   const progressDeviation = balance.find((d) => d.slug === progress.slug)!;
-  expect(progressDeviation.deviation).toBe(0);
+  expect(progressDeviation.polarity).toBe('progress');
+  expect(progressDeviation.deviation).toBeLessThan(riskDeviation.deviation);
+});
+
+// STU-1283: a domain whose oldest article predates `BALANCE_MATURITY_DAYS` has
+// `counterHistory` sample points that read BASE only because the domain did not
+// exist yet — not because it was quiet. Included, that reads as a wild swing;
+// excluded, there is honestly nothing to compare yet.
+test('a domain younger than the maturity window is left out of the balance entirely', () => {
+  tempDbPath();
+  const risk = DOMAINS.find((d) => d.polarity === 'risk')!;
+
+  // Oldest article is one day short of the maturity bar.
+  seedArticle(risk.slug, BALANCE_MATURITY_DAYS - 1, 3);
+  seedArticle(risk.slug, 0, 90);
+
+  expect(readBalance().map((d) => d.slug)).not.toContain(risk.slug);
+});
+
+test('a domain right at the maturity bar is included', () => {
+  tempDbPath();
+  const risk = DOMAINS.find((d) => d.polarity === 'risk')!;
+
+  seedArticle(risk.slug, BALANCE_MATURITY_DAYS, 3);
+  seedArticle(risk.slug, 0, 3);
+
+  expect(readBalance().map((d) => d.slug)).toContain(risk.slug);
+});
+
+test('a domain with no scored articles at all is left out, not read as perfectly calm', () => {
+  tempDbPath();
+  expect(readBalance()).toEqual([]);
+});
+
+// The regression this guards: the first version of this gate checked
+// `published_at`, and a domain's first sweep can carry in months-old backlog
+// items (STU-1206's stranded-row carry). That made every domain here read as
+// "mature" by publish date while none of them had a single real day of
+// observation — checked directly on the live site (STU-1283).
+test('an old published_at from a first-sweep backlog does not count as maturity', () => {
+  tempDbPath();
+  const risk = DOMAINS.find((d) => d.polarity === 'risk')!;
+
+  const db = openDb();
+  const scoredNow = new Date().toISOString();
+  const publishedLongAgo = new Date(Date.now() - (BALANCE_MATURITY_DAYS + 30) * 864e5).toISOString();
+  db.query(
+    'INSERT INTO articles (domain, url, title, source, published_at, summary, score, matched_keywords, evidence, scored_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(risk.slug, 'https://example.com/backlog', 'An old story, just scored', 'A Feed', publishedLongAgo, '', 40, '[]', '', scoredNow);
+  db.close();
+
+  expect(readBalance().map((d) => d.slug)).not.toContain(risk.slug);
 });

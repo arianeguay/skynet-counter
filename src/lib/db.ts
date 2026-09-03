@@ -416,23 +416,52 @@ export function readSnapshot(domain: string, limit = 40): CounterSnapshot {
   }
 }
 
-// Every domain's deviation from its own recent normal, read fresh on every page
-// render — the whole registry, not the domain that page happens to be showing
-// (STU-1280). One query per domain rather than one bulk query: the tables are
-// small and this runs once per page, not once per article.
+// A domain younger than this has some `counterHistory` sample points that
+// predate real observation of it, and those points read exactly BASE — not
+// because the domain was quiet, but because nothing had swept it yet. The
+// first real point after that flat run then measures as wildly "above normal"
+// against a false floor. The same class of bug STU-1222 already fixed for a
+// single counter, one level up (STU-1280, STU-1283).
+export const BALANCE_MATURITY_DAYS = HORIZON_DAYS + HISTORY_WINDOW_DAYS;
+
+// Every mature domain's deviation from its own recent normal, read fresh on
+// every page render — the whole registry, not the domain that page happens to
+// be showing (STU-1280). A domain younger than `BALANCE_MATURITY_DAYS` is
+// omitted entirely rather than included with a misleading deviation; on a
+// young site that can mean too few domains on a side to compare at all, and
+// `balanceOf` already renders nothing rather than guess in that case.
+//
+// Maturity is measured on `scored_at`, never `published_at`. A domain's first
+// sweep can carry in a backlog of months-old items (STU-1206's stranded-row
+// carry, an RSS feed's own retained window), so `published_at` says how old
+// the *news* is, not how long this pipeline has actually been watching for
+// it — checked directly on the live site (STU-1283): every domain's oldest
+// `scored_at` was within the last three days, `cybersecurite` included,
+// despite `published_at` histories reaching back months on three of the four.
+// `scored_at` is the one field a backlog cannot antedate, because it is
+// written at sweep time regardless of when the article was published.
 export function readBalance(): DomainDeviation[] {
   const db = openDb();
   try {
-    const since = new Date(Date.now() - (HORIZON_DAYS + HISTORY_WINDOW_DAYS) * 864e5).toISOString();
-    return DOMAINS.map((domain) => {
+    const since = new Date(Date.now() - BALANCE_MATURITY_DAYS * 864e5).toISOString();
+    const deviations: DomainDeviation[] = [];
+    for (const domain of DOMAINS) {
+      const firstSweep = db
+        .query<{ first: string | null }, [string]>(
+          'SELECT MIN(scored_at) first FROM articles WHERE domain = ? AND score IS NOT NULL'
+        )
+        .get(domain.slug);
+      if (!firstSweep?.first || firstSweep.first > since) continue;
+
       const rows = db
         .query<Sourced, [string, string]>(
           'SELECT score, source, published_at FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
         )
         .all(domain.slug, since);
       const history = counterHistory(rows, Date.now(), BASE, domain.divisor);
-      return { slug: domain.slug, polarity: domain.polarity, deviation: normalizedDeviation(history) };
-    });
+      deviations.push({ slug: domain.slug, polarity: domain.polarity, deviation: normalizedDeviation(history) });
+    }
+    return deviations;
   } finally {
     db.close();
   }
