@@ -285,7 +285,7 @@ silent. It reports and must never reject;
 [mitigation.test.ts](src/lib/mitigation.test.ts) holds all eight measured cases,
 including the six that must still score.
 
-### Why there is no domotique domain
+### Why domotique has no *risk* counter — and what it has instead
 
 Measured on 2026-09-02 (STU-1217). The domain fails differently from the ones that
 work: the incident vocabulary exists and matches fine, but no feed publishes
@@ -309,9 +309,20 @@ findings. But they are *industrial* — Rockwell Automation, Mitsubishi CNC, emb
 radio modules. A counter built on them and labelled domotique would be an advisory
 feed wearing a label about someone's house.
 
-So the counter ships without domotique. The version that would work is a differently
-named domain — connected-device or industrial-control advisories — which is a change
-to what the site claims to measure, not a keyword list to tune.
+So no domain scores domotique as *risk*. What reopened it was the same mechanism that
+reopened design: `smarthome` reads the identical subject as **progress** — a device
+gaining local control rather than a device getting bricked. Measured 2026-09-03 across
+five feeds (Home Assistant, The Verge's smart home feed, Zigbee2MQTT's GitHub
+releases, SmartHomeScene, an HN filter): 34% score, and no source supplies more than
+~40% of it. The first pass used three sources and was 70% one blog — the same
+concentration this section already found for CISA — so the fix was breadth, the same
+fix `environment`'s divisor needed.
+
+Two keywords were cut after measuring, not before: `self-hosted` pulled in unrelated
+HN stories once the feed query carried the bare word (a ticketing system, an ebook
+library — nothing about a house), and `new integration` matched loosely on stories
+that were not really about one. See [smarthome.ts](src/lib/domains/smarthome.ts) and
+its measurement.
 
 Two things found while measuring, worth not rediscovering: `staceyoniot.com/feed`
 parses fine but its newest item is over three years old, and

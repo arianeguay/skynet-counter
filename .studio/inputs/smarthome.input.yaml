@@ -1,0 +1,22 @@
+# Feeds for the smarthome domain. Measured on 2026-09-03 (STU-1281): all five
+# returned items and contributed score, with no single source supplying more
+# than ~40% of it — the first probe used three sources and was 70% one blog,
+# the exact shape that killed the risk-polarity attempt (STU-1217).
+run: scheduled
+
+feeds:
+  - source: Home Assistant
+    url: https://www.home-assistant.io/atom.xml
+  - source: The Verge Smart Home
+    url: https://www.theverge.com/rss/smart-home/index.xml
+  # A GitHub releases feed, not a blog: Zigbee2MQTT's release notes report
+  # "adds support for" the devices that version newly supports, which is the
+  # domain's whole subject in structured, event-shaped form.
+  - source: Zigbee2MQTT releases
+    url: https://github.com/Koenkk/zigbee2mqtt/releases.atom
+  - source: SmartHomeScene
+    url: https://www.smarthomescene.com/feed/
+  # Filtered on the domain's own vocabulary rather than "self-hosted" — that
+  # bare term pulled in unrelated software stories in the first probe.
+  - source: HN smart home
+    url: https://hnrss.org/newest?q=%22home+assistant%22+OR+matter+OR+zigbee+OR+esphome+OR+%22smart+home%22&points=40

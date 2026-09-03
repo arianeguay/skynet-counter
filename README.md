@@ -66,7 +66,7 @@ route can import `bun:sqlite`. Running them under Node will fail at that import.
 | Path | What it serves |
 |---|---|
 | `/` | redirect to the default domain |
-| `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite`, `/environment`, `/frontend` |
+| `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite`, `/environment`, `/frontend`, `/smarthome` |
 | `/ecologie` | permanent redirect to `/environment`, the slug it was renamed from |
 | `/api/skynet` | the default domain's full snapshot as JSON |
 | `/api/skynet/summary` | the default domain's counter, timestamp and band, for the desktop widget |
