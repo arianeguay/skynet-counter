@@ -18,6 +18,8 @@ export const environment: Domain = {
   // room to 74 on a tripled one. One feed's RSS window was a single day at the
   // time, and a rate off a one-day window is the mistake STU-1171 records, so
   // re-run `bun run calibrate` against real stored history before trusting this.
+  polarity: 'risk',
+  question: { prefix: 'What is the machine', subject: 'drinking' },
   divisor: 24,
   keywords: {
     'water consumption': 13,

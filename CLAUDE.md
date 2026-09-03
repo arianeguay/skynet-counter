@@ -230,6 +230,35 @@ hit counts. A keyword firing on 40%+ of articles is measuring the beat. A keywor
 firing zero times is dead weight, and a table of those is a counter stuck at its
 floor.
 
+### Polarity: not every counter reads the same way
+
+A domain carries `polarity: 'risk' | 'progress'`. It changes nothing in the counter
+formula — the same signal, decay and divisor produce the number either way — it only
+says which direction is bad news. `statusLine(counter, polarity)` picks the band
+vocabulary (`STALLED` … `GROUND GAINED` instead of `NOMINAL` … `CONTAINMENT
+DEGRADED`), the domain's `question` replaces the hardcoded Singularity line, and
+`.polarity-progress` on the page wrapper remaps `--color-signal` from red to green —
+every component that draws with `var(--color-signal)` follows without knowing which
+kind of counter it is inside (STU-1279).
+
+This exists because two of the four domains this project set out to build had no risk
+signal at all. STU-1219 and STU-1217 measured design and domotique from opposite
+directions and found the same shape: real harm, never published as news. What *is*
+published, weekly, is the good news — a capability landing in every browser, a device
+gaining local control. `frontend` is the first domain that ships on this: three risk
+framings for design failed (see below); read as progress, the same beat scores.
+
+**The two effects are polarity's, too.** `.glitch` is a risk counter's fault — an RGB
+split and a clip-path tear, corruption. `.glow` is a progress counter's — a single
+soft bloom (scale + `text-shadow` glow, no split, no clip), arrival rather than a
+fault. Same trigger, same beat (`CounterHero`'s one random timer drives both), and the
+hold duration follows whichever is active — `.glow`'s 900ms breath is a different
+shape from `.glitch`'s 220ms snap, so the class is never yanked mid-animation.
+
+Reach for `getAnimations()[0].pause(); anim.currentTime = <ms>` when checking either
+effect in a browser — a screenshot taken on a guessed delay lands past the window,
+paused-and-seeked does not.
+
 ### Direction, and why it is the scorer's call
 
 A keyword names a thing going wrong, and an article can be about that thing being
@@ -289,7 +318,7 @@ parses fine but its newest item is over three years old, and
 `theverge.com/smart-home/rss/index.xml` 404s while
 `theverge.com/rss/smart-home/index.xml` works.
 
-### Why there is no design domain
+### Why design has no *risk* counter — and what it has instead
 
 Measured on 2026-09-02 against 89 hydrated articles from eight live design and
 frontend feeds — Smashing Magazine, CSS-Tricks, A List Apart, NN/g, UX Collective,
@@ -317,8 +346,14 @@ closed table without asking a model. Scoring *velocity* instead of severity is
 deterministic and would work, but it makes the same gauge mean "how dangerous" on one
 route and "how fast is the ground moving" on another.
 
-So the counter ships without design. Reopen this with a mechanism, not a longer
-keyword list: a list is the thing that was measured and found not to separate.
+So no domain scores design as *risk*. What reopened it was not a better list but the
+mechanism above: `frontend` is the same subject read as **progress** instead — a
+capability landing everywhere, not a designer's mistake. Its table shares this
+section's finding rather than contradicting it. `newly available`, `cross-browser`,
+`widely available` all name an *event*, the same property "zero-day" has that
+"ai-generated" never did; the difference is that a progress domain's events are the
+platform doing well, not doing harm. See [frontend.ts](src/lib/domains/frontend.ts)
+and its measurement, and Polarity above for the mechanism that let it ship.
 
 ### The keyword table
 

@@ -32,7 +32,13 @@ export default async function DomainPage({ params }: { params: Promise<{ domaine
   const { counter, updatedAt, articles, feedErrors } = readSnapshot(domain.slug);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-16">
+    // The accent every child draws with is remapped here rather than passed down,
+    // so the gauge and the log never learn which kind of counter they are inside.
+    <main
+      className={`mx-auto max-w-4xl px-6 py-16 ${
+        domain.polarity === 'progress' ? 'polarity-progress' : ''
+      }`}
+    >
       <DomainNav active={domain.slug} />
 
       <CounterHero
@@ -41,6 +47,8 @@ export default async function DomainPage({ params }: { params: Promise<{ domaine
         scored={articles.length}
         label={domain.label}
         tagline={domain.tagline}
+        polarity={domain.polarity}
+        question={domain.question}
       />
 
       <FeedAlert feedErrors={feedErrors} />

@@ -25,8 +25,8 @@ export function Gauge({ value }: { value: number }) {
     <svg viewBox="0 0 320 210" className="w-full max-w-[420px]" role="img" aria-label={`Threat level ${clamped} of 100`}>
       <defs>
         <linearGradient id="dial" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="var(--color-blood-dim)" />
-          <stop offset="100%" stopColor="var(--color-blood)" />
+          <stop offset="0%" stopColor="var(--color-signal-dim)" />
+          <stop offset="100%" stopColor="var(--color-signal)" />
         </linearGradient>
         <filter id="burn" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="4" result="blur" />
@@ -59,14 +59,14 @@ export function Gauge({ value }: { value: number }) {
             y1={y1}
             x2={x2}
             y2={y2}
-            stroke={deg <= angle ? 'var(--color-blood)' : 'var(--color-hairline)'}
+            stroke={deg <= angle ? 'var(--color-signal)' : 'var(--color-hairline)'}
             strokeWidth={major ? 2 : 1}
           />
         );
       })}
 
-      <line x1={CX} y1={CY} x2={nx} y2={ny} stroke="var(--color-blood)" strokeWidth="2.5" filter="url(#burn)" />
-      <circle cx={CX} cy={CY} r="7" fill="var(--color-void)" stroke="var(--color-blood)" strokeWidth="2" />
+      <line x1={CX} y1={CY} x2={nx} y2={ny} stroke="var(--color-signal)" strokeWidth="2.5" filter="url(#burn)" />
+      <circle cx={CX} cy={CY} r="7" fill="var(--color-void)" stroke="var(--color-signal)" strokeWidth="2" />
       <text x={polar(R + 14, -SPAN)[0]} y={polar(R + 14, -SPAN)[1]} className="fill-ash text-[10px]" textAnchor="middle">0</text>
       <text x={polar(R + 14, SPAN)[0]} y={polar(R + 14, SPAN)[1]} className="fill-ash text-[10px]" textAnchor="middle">100</text>
     </svg>

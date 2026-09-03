@@ -1,5 +1,7 @@
+import type { Polarity } from '@/lib/counter';
 import { cybersecurite } from './cybersecurite';
 import { environment } from './environment';
+import { frontend } from './frontend';
 
 export interface Domain {
   // The route segment, the `SKYNET_DOMAIN` value and the `domain` column's
@@ -10,6 +12,15 @@ export interface Domain {
   // What this counter counts, printed under the gauge.
   tagline: string;
   keywords: Record<string, number>;
+  // Which way is up for this counter. Two of the four domains this project set out
+  // to build have no risk signal at all — nobody publishes their harms as news —
+  // while their good news is published weekly, so the number they can carry is a
+  // progress one (STU-1279). It decides the bands and the accent colour, nothing
+  // in the arithmetic.
+  polarity: Polarity;
+  // The line under the title. It is per domain because "How close are we to The
+  // Singularity?" is the wrong question over a gauge where high is good.
+  question: { prefix: string; subject: string };
   // DIVISOR is picked from a feed set's measured score per day, so it does not
   // travel between domains: a domain publishing a tenth of the volume would read
   // a tenth of the counter on cybersecurity's constant. BASE, HALF_LIFE_DAYS and
@@ -27,7 +38,7 @@ export interface Domain {
 // module here: the `fetch` map stage fans out over `input.feeds`, and Studio
 // reads YAML, not TypeScript. A second copy in this directory is the trap
 // STU-1191 already cost a sweep — the feed table stays in one place per domain.
-export const DOMAINS: Domain[] = [cybersecurite, environment];
+export const DOMAINS: Domain[] = [cybersecurite, environment, frontend];
 
 export const DEFAULT_DOMAIN = cybersecurite.slug;
 

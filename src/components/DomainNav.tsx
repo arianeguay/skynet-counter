@@ -21,7 +21,7 @@ export function DomainNav({ active, domains = DOMAINS }: { active: string; domai
             href={`/${domain.slug}`}
             aria-current={current ? 'page' : undefined}
             className={`flex-1 whitespace-nowrap px-4 py-2.5 text-center text-[10px] tracking-[0.25em] transition-colors ${
-              current ? 'bg-panel text-blood' : 'bg-void text-ash hover:text-bone'
+              current ? 'bg-panel text-signal' : 'bg-void text-ash hover:text-bone'
             }`}
           >
             {domain.label.toUpperCase()}

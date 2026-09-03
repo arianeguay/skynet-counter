@@ -1,8 +1,8 @@
 import type { Article } from '@/lib/db';
 
 function severity(score: number): { label: string; className: string } {
-  if (score >= 30) return { label: 'CRIT', className: 'border-blood text-blood' };
-  if (score >= 15) return { label: 'HIGH', className: 'border-blood-dim text-blood' };
+  if (score >= 30) return { label: 'CRIT', className: 'border-signal text-signal' };
+  if (score >= 15) return { label: 'HIGH', className: 'border-signal-dim text-signal' };
   if (score > 0) return { label: 'WARN', className: 'border-amber/50 text-amber' };
   return { label: 'NOMINAL', className: 'border-hairline text-ash' };
 }
@@ -32,7 +32,7 @@ export function ArticleLog({ articles }: { articles: Article[] }) {
                 href={a.url}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm text-bone underline-offset-4 group-hover:text-blood group-hover:underline"
+                className="text-sm text-bone underline-offset-4 group-hover:text-signal group-hover:underline"
               >
                 {a.title}
               </a>
