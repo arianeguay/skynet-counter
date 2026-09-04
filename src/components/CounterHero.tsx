@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { statusLine, type Polarity } from '@/lib/counter';
 import { Gauge } from './Gauge';
 import { GlitchNumber } from './GlitchNumber';
+import { TrendSparkline } from './TrendSparkline';
 
 export function CounterHero({
   counter,
@@ -13,6 +14,7 @@ export function CounterHero({
   tagline,
   polarity,
   question,
+  history,
 }: {
   counter: number;
   updatedAt: string;
@@ -21,6 +23,7 @@ export function CounterHero({
   tagline: string;
   polarity: Polarity;
   question: { prefix: string; subject: string };
+  history: number[];
 }) {
   const hero = useRef<HTMLElement>(null);
   const [pinned, setPinned] = useState(false);
@@ -113,6 +116,7 @@ export function CounterHero({
         </p>
         <p className="max-w-md text-center text-xs text-ash">{tagline}</p>
         <Gauge value={counter} />
+        <TrendSparkline history={history} />
         <GlitchNumber value={counter} glitching={glitching} effect={effect} />
         <p className="text-sm tracking-[0.25em] text-signal">{status}</p>
         <p className="text-xs text-ash">

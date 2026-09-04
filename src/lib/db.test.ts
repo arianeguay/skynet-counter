@@ -3,7 +3,17 @@ import { afterEach, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BALANCE_MATURITY_DAYS, openDb, readBalance, readCounter, readFeedErrors, readHostOutage, readSnapshot } from '@/lib/db';
+import {
+  BALANCE_MATURITY_DAYS,
+  TREND_WINDOW_DAYS,
+  openDb,
+  readBalance,
+  readCounter,
+  readCounterTrend,
+  readFeedErrors,
+  readHostOutage,
+  readSnapshot,
+} from '@/lib/db';
 import { DEFAULT_DOMAIN, DOMAINS, currentDomain, domainBySlug } from '@/lib/domains';
 
 const dirs: string[] = [];
@@ -473,4 +483,54 @@ test('an old published_at from a first-sweep backlog does not count as maturity'
   db.close();
 
   expect(readBalance().map((d) => d.slug)).not.toContain(risk.slug);
+});
+
+// STU-1290: the sparkline under a domain's gauge, and the same young-domain trap
+// `readBalance` already had to close for the balance calculation — a day the
+// domain did not exist yet reads as BASE, indistinguishable from a real quiet
+// day, so the window must be clipped rather than padded.
+test('a domain with no scored articles has no trend to show', () => {
+  tempDbPath();
+  const domain = DOMAINS[0]!;
+
+  expect(readCounterTrend(domain)).toEqual([]);
+});
+
+test('the trend is clipped to how long the domain has actually been swept', () => {
+  tempDbPath();
+  const domain = DOMAINS[0]!;
+
+  seedArticle(domain.slug, 5, 20);
+  seedArticle(domain.slug, 0, 10);
+
+  // 5 days old, so the window is 5 days: 6 points, not TREND_WINDOW_DAYS + 1
+  // padded with days before the domain was ever swept.
+  expect(readCounterTrend(domain)).toHaveLength(6);
+});
+
+test('a domain swept for TREND_WINDOW_DAYS or more returns the full window', () => {
+  tempDbPath();
+  const domain = DOMAINS[0]!;
+
+  seedArticle(domain.slug, TREND_WINDOW_DAYS + 5, 20);
+  seedArticle(domain.slug, 0, 10);
+
+  expect(readCounterTrend(domain)).toHaveLength(TREND_WINDOW_DAYS + 1);
+});
+
+// The same domain isolation every other read in this file guarantees: a burst
+// in one domain's trend must not appear in another's.
+test('the trend reads only its own domain’s articles', () => {
+  tempDbPath();
+  const [a, b] = DOMAINS;
+  if (!a || !b) throw new Error('this test needs at least two registered domains');
+
+  seedArticle(a.slug, TREND_WINDOW_DAYS + 5, 20);
+  seedArticle(a.slug, 0, 90);
+  seedArticle(b.slug, TREND_WINDOW_DAYS + 5, 20);
+  seedArticle(b.slug, 0, 3);
+
+  const trendA = readCounterTrend(a);
+  const trendB = readCounterTrend(b);
+  expect(trendA.at(-1)).not.toBe(trendB.at(-1));
 });

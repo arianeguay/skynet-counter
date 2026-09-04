@@ -50,6 +50,17 @@ test('a domain does not render another domain’s articles', async () => {
   expect(markup).not.toContain('Belongs to another domain');
 });
 
+// The trend under the gauge is real DB-to-render wiring, not just a unit-level
+// property of `readCounterTrend` and `TrendSparkline` in isolation (STU-1290).
+test('a domain with scored history renders its trend under the gauge', async () => {
+  seed(DEFAULT_DOMAIN, 'https://example.com/trend', 41, 'A scored story with real history');
+
+  const markup = await render(DEFAULT_DOMAIN);
+
+  expect(markup).toContain('<svg');
+  expect(markup).toContain('<polyline');
+});
+
 test('the page is titled and described by the domain it serves', async () => {
   const domain = DOMAINS[0]!;
   const meta = await generateMetadata({ params: Promise.resolve({ domaine: domain.slug }) });

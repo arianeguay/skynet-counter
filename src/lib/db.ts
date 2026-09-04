@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { BASE, HISTORY_WINDOW_DAYS, HORIZON_DAYS, counterHistory, type Sourced } from './counter';
-import { DOMAINS } from './domains';
+import { DOMAINS, type Domain } from './domains';
 import { normalizedDeviation, type DomainDeviation } from './balance';
 
 // Read per call, not once at module load: capturing it at import time meant
@@ -462,6 +462,46 @@ export function readBalance(): DomainDeviation[] {
       deviations.push({ slug: domain.slug, polarity: domain.polarity, deviation: normalizedDeviation(history) });
     }
     return deviations;
+  } finally {
+    db.close();
+  }
+}
+
+// How many days a sparkline asks for. Independent of `HISTORY_WINDOW_DAYS`, which
+// is sized for the balance calculation and not for a reader's sense of "recent".
+export const TREND_WINDOW_DAYS = 30;
+
+// The daily trend under a domain's gauge. Unlike `readBalance()`, a young domain
+// is not excluded here — a short real trend is still worth showing. But it must
+// not be *padded* with days before the domain existed: `counterHistory` reads
+// exactly zero signal for a day it has no rows for and returns BASE, which is
+// indistinguishable from "genuinely quiet" — the same flat-then-jump artifact
+// STU-1283 found corrupting the balance calculation, one render target over.
+//
+// The fix is the same shape as that one, applied to a line instead of a single
+// number: the window is clipped to how long the domain has actually been swept,
+// measured on `scored_at` for the reason `readBalance()`'s comment gives — a
+// first sweep can carry in a backlog whose `published_at` reaches back months
+// before this pipeline ever watched the domain (STU-1290).
+export function readCounterTrend(domain: Domain): number[] {
+  const db = openDb();
+  try {
+    const firstSweep = db
+      .query<{ first: string | null }, [string]>(
+        'SELECT MIN(scored_at) first FROM articles WHERE domain = ? AND score IS NOT NULL'
+      )
+      .get(domain.slug);
+    if (!firstSweep?.first) return [];
+
+    const ageDays = Math.floor((Date.now() - Date.parse(firstSweep.first)) / 864e5);
+    const windowDays = Math.min(TREND_WINDOW_DAYS, ageDays);
+    const since = new Date(Date.now() - (windowDays + HORIZON_DAYS) * 864e5).toISOString();
+    const rows = db
+      .query<Sourced, [string, string]>(
+        'SELECT score, source, published_at FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
+      )
+      .all(domain.slug, since);
+    return counterHistory(rows, Date.now(), BASE, domain.divisor, windowDays);
   } finally {
     db.close();
   }
