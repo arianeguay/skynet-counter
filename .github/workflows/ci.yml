@@ -16,3 +16,26 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
+
+  # What the server deploys. `green` is main's history with the untested commits
+  # left off, so the deploy watcher can fast-forward to it blind — no API call,
+  # no token, and nothing to parse that could read a red run as green.
+  #
+  # It moves only on a push to main that passed `check`; a pull request never
+  # reaches here, and neither does a commit whose tests failed.
+  green:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Serialized, so two runs finishing out of order cannot leave green on the
+    # older commit.
+    concurrency:
+      group: green-ref
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      # The commit is already on the remote, so this transfers no objects — it
+      # only moves the ref.
+      - run: git push --force origin ${{ github.sha }}:refs/heads/green

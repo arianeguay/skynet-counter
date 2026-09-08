@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,13 +11,18 @@ const SCRIPT = join(import.meta.dir, '../../docker/run-loop.sh');
 function stage({ failing = '' }: { failing?: string } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'skynet-loop-'));
   const log = join(dir, 'sweeps.log');
+  const marked = join(dir, 'marked.log');
+  const state = join(dir, 'state');
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   mkdirSync(join(dir, '.studio'));
   writeFileSync(join(dir, '.studio', 'config.example.yaml'), '');
+  // The stub also reports whether the sweep marker was in place while it ran —
+  // that is the only moment its presence can be observed, since the loop clears
+  // it the instant the sweep returns.
   writeFileSync(
     join(bin, 'studio'),
-    `#!/bin/sh\necho "$SKYNET_DOMAIN" >> ${log}\n[ "$SKYNET_DOMAIN" = "${failing}" ] && exit 1\nexit 0\n`
+    `#!/bin/sh\necho "$SKYNET_DOMAIN" >> ${log}\n[ -f ${state}/sweeping ] && echo "$SKYNET_DOMAIN" >> ${marked}\n[ "$SKYNET_DOMAIN" = "${failing}" ] && exit 1\nexit 0\n`
   );
   chmodSync(join(bin, 'studio'), 0o755);
 
@@ -28,7 +33,7 @@ function stage({ failing = '' }: { failing?: string } = {}) {
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
         SKYNET_SCHEDULE: schedule,
-        SKYNET_STATE_DIR: join(dir, 'state'),
+        SKYNET_STATE_DIR: state,
         MAX_SLEEP: '1',
       },
       stdout: 'ignore',
@@ -43,7 +48,17 @@ function stage({ failing = '' }: { failing?: string } = {}) {
     }
   };
 
-  return { run, sweeps };
+  const markedDuring = (): string[] => {
+    try {
+      return readFileSync(marked, 'utf8').split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
+  const marker = join(state, 'sweeping');
+
+  return { run, sweeps, markedDuring, marker, state };
 }
 
 // Polls rather than sleeping a fixed span, so a slow machine waits longer instead
@@ -120,4 +135,43 @@ test('a restart does not re-sweep a domain that is not due yet', async () => {
   await second.exited;
 
   expect(sweeps()).toEqual(['slow']);
+});
+
+// The deploy watcher reads this marker to avoid rebuilding the container a sweep
+// is running in — a scoring stage that gets SIGTERM has already been billed for
+// the tokens it will never write.
+test('a sweep is marked while it runs and unmarked once it returns', async () => {
+  const { run, sweeps, markedDuring, marker } = stage();
+  const proc = run('fast:1');
+  try {
+    await until(() => sweeps().length >= 2);
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+
+  expect(markedDuring().length).toBeGreaterThanOrEqual(2);
+  expect(existsSync(marker)).toBe(false);
+});
+
+// A container killed mid-sweep leaves the marker behind, and nothing inside a
+// stopped container can clear it. Left there, it would defer every deploy from
+// then on.
+test('a marker left by a killed container is cleared at startup', async () => {
+  const { run, sweeps, marker, state } = stage();
+  mkdirSync(state, { recursive: true });
+  writeFileSync(marker, '1');
+  // Not due for an hour, so nothing re-creates the marker during the check.
+  writeFileSync(join(state, 'slow.due'), String(Math.floor(Date.now() / 1000) + 3600));
+
+  const proc = run('slow:3600');
+  try {
+    await until(() => !existsSync(marker));
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+
+  expect(existsSync(marker)).toBe(false);
+  expect(sweeps()).toEqual([]);
 });

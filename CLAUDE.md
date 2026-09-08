@@ -211,6 +211,46 @@ TypeScript, and a stale one would sweep a domain nothing serves.
 [tests/docker/run-loop.test.ts](tests/docker/run-loop.test.ts) drives the script with a
 stub `studio` on PATH, so the cadence is provable without Docker or a paid run.
 
+### Deploying, and why the server pulls
+
+CI does not connect to the server; the server fetches from GitHub. A push-based deploy
+needs sshd reachable from GitHub's runners or a tunnel credential living in a GitHub
+secret, and neither is worth buying a five-minute-shorter deploy with on a homelab box.
+
+The two halves are `ci.yml`'s `green` job and
+[docker/deploy-watcher.sh](docker/deploy-watcher.sh). The job force-moves a `green`
+branch to the SHA it just tested, on a push to `main` that passed `check`. `green` is
+therefore main's history minus the untested commits, which is what lets the watcher
+fast-forward to it **blind** — no API call, no token, and no JSON for a parse bug to
+read a red run as green. Deploying `main` directly stays available as `make deploy`,
+because a human asking for an untested commit is a different act from the loop doing it.
+
+Every failure path in the watcher returns 0 and costs one poll, the same shape as
+`run-loop.sh` — it is the only thing keeping the server current, so nothing may take it
+down. Three of those paths are deliberate rather than defensive:
+
+- It merges `--ff-only` and **never resets**. A checkout that has diverged is someone
+  debugging on the server, and a reset would delete that silently.
+- A failed build is **not recorded**, so the next pass retries the same commit. Writing
+  the SHA before the build succeeded would leave the old image serving while the state
+  file claimed the server was current.
+- A commit already in the checkout (a `make deploy` got there first) *is* recorded
+  without a rebuild, so the log does not repeat every five minutes.
+
+**It holds off while a sweep is running.** `docker compose up` recreates the `pipeline`
+container, and a scoring stage that gets SIGTERM has already been billed for tokens it
+will never write. `run-loop.sh` stamps `$STATE/sweeping` with the epoch at sweep start
+and clears it after — and clears it *at startup* too, because a container killed
+mid-sweep leaves the stamp behind and nothing inside a stopped container can remove it.
+The watcher reads the stamp through `docker compose exec` (the volume is root-owned on
+the host) and ignores one older than `SWEEP_LOCK_MAX_AGE`, so a marker nothing cleared
+defers one deploy rather than every deploy from then on.
+
+systemd runs the watcher, not compose — [docker/skynet-deploy.service](docker/skynet-deploy.service)
+is the template `make install-watcher` fills in. A compose service would be running
+`docker compose up -d --build` over its own project and would get SIGTERM in the middle
+of the command doing it.
+
 ### Picking a domain's keywords
 
 Both tables were picked by measuring, and the écologie one is why the method is
@@ -622,6 +662,10 @@ proof, not the edit.
 - the sweep scheduler's *logic* — `tests/docker/run-loop.test.ts` runs
   `docker/run-loop.sh` against a stub `studio` on PATH, so cadence, failure isolation
   and restart behaviour need neither Docker nor a paid run
+- the deploy watcher's *logic* — the same shape with stub `git` and `docker` on PATH
+  (`tests/docker/deploy-watcher.test.ts`), so which commit it deploys, which it refuses
+  and what it records are provable without a server. Whether systemd actually starts it
+  on apollon is not.
 
 **`claude:local` — anything whose proof is a real `studio run`:**
 
