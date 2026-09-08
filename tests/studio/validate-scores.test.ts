@@ -38,8 +38,13 @@ interface Verdict {
   issues: string[];
 }
 
-async function validate(scored: unknown[], candidates: unknown[] = ARTICLES): Promise<Verdict> {
+async function validate(
+  scored: unknown[],
+  candidates: unknown[] = ARTICLES,
+  env: Record<string, string> = {}
+): Promise<Verdict> {
   const proc = Bun.spawn(['bun', SCRIPT], {
+    env: { ...process.env, ...env },
     stdin: new TextEncoder().encode(
       JSON.stringify({
         previous_outputs: { dedupe: { articles: candidates }, score: { articles: scored } },
@@ -220,4 +225,43 @@ test('a partial batch that declares its one drop reports no unclaimed keyword', 
   expect(verdict.status).toBe('approved');
   expect(verdict.summary).not.toContain('unclaimed');
   expect(verdict.summary).toContain('"exfiltrate"');
+});
+
+// --- the subject gate reaches the validator (STU-1291) ---
+
+// An oil spill off a climate feed. The keyword table fires on it — "aquifer" and
+// "ratepayer" are doing exactly what they were picked to do — and the domain's
+// subject gate is the only thing that says the article is not on this beat. The
+// validator recomputes that gate from the domain module, so a score claimed here
+// has no keyword to stand on however literally present it is.
+const OIL_SPILL = [
+  {
+    title: 'Pipeline rupture sends 4,000 barrels toward the aquifer',
+    url: 'https://example.com/spill',
+    source: 'Inside Climate News',
+    publishedAt: '2026-09-01T00:00:00.000Z',
+    summary: 'The ratepayer will fund the cleanup, regulators said.',
+  },
+];
+
+test('a score claimed on an article off the domain subject is rejected', async () => {
+  const verdict = await validate(
+    [{ url: OIL_SPILL[0]!.url, score: 20, matched_keywords: ['aquifer', 'ratepayer'], evidence: 'toward the aquifer' }],
+    OIL_SPILL,
+    { SKYNET_DOMAIN: 'environment' }
+  );
+  expect(verdict.status).toBe('rejected');
+  expect(verdict.issues.join(' ')).toContain('does not appear');
+});
+
+// And the zero it should get instead is approved without the scorer having to
+// declare a drop: the article reaches it with no candidates at all.
+test('a zero on an article off the domain subject is approved with nothing to declare', async () => {
+  const verdict = await validate(
+    [{ url: OIL_SPILL[0]!.url, score: 0, matched_keywords: [], evidence: '' }],
+    OIL_SPILL,
+    { SKYNET_DOMAIN: 'environment' }
+  );
+  expect(verdict.status).toBe('approved');
+  expect(verdict.issues).toEqual([]);
 });

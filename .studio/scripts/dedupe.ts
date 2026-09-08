@@ -1,6 +1,6 @@
 import { readContext, emit, hydrateSummaries, type RawArticle } from './rss.ts';
 import { openDb, SWEEP_RETENTION_DAYS, UNREADABLE_AFTER_ATTEMPTS } from '../../src/lib/db.ts';
-import { matchedKeywords } from '../../src/lib/keywords.ts';
+import { candidateKeywords } from '../../src/lib/keywords.ts';
 import { currentDomain } from '../../src/lib/domains/index.ts';
 
 const HISTORY_WINDOW = 100;
@@ -169,9 +169,14 @@ const pagesUnreadable = countBySource(unreadable);
 // is handed over already done; the judgement the scorer is there for, keep or drop,
 // is not. The validator still recomputes from keywords.ts and never reads this
 // field, so a batch cannot be approved by trusting it.
+//
+// `candidateKeywords` also applies the domain's subject gate, so an article off
+// the domain's beat arrives with an empty list and rule 6 makes it a 0 the
+// scorer never has to reason about — the cheap half of STU-1291, since the
+// stage that costs tokens is the one that stops seeing those articles.
 const articles = [...stranded, ...hydrated].map((a) => ({
   ...a,
-  candidate_keywords: matchedKeywords(`${a.title} ${a.summary}`, domain.keywords),
+  candidate_keywords: candidateKeywords(`${a.title} ${a.summary}`, domain.keywords, domain.subject),
 }));
 
 const noteUnread = db.prepare(

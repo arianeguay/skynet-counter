@@ -4,6 +4,7 @@
 import { Database } from 'bun:sqlite';
 import { BASE, HALF_LIFE_DAYS, HORIZON_DAYS, counterFrom, decayedSignal, normalizedSignal, steadySignal } from '@/lib/counter';
 import { currentDomain } from '@/lib/domains';
+import { scoredHistory } from '@/lib/db';
 
 const HALF_LIVES = [3, 5, 7, 10, 14];
 const DIVISORS = [8, 12, 16, 24, 32, 40];
@@ -19,11 +20,16 @@ const db = new Database(path, { readonly: true });
 const now = Date.now();
 const horizon = new Date(now - HORIZON_DAYS * 864e5).toISOString();
 
-const rows = db
-  .query<{ score: number; published_at: string; source: string }, [string, string]>(
-    'SELECT score, published_at, source FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
+// Through the same reader the counter uses, so a domain with a subject gate is
+// calibrated on the rows it will actually count. Off-subject rows still sit in
+// the table, and a divisor picked off a rate that includes them is picked off a
+// signal the counter no longer sees (STU-1291).
+const rows = scoredHistory(db, domain, horizon);
+const ungated = db
+  .query<{ n: number }, [string, string]>(
+    'SELECT COUNT(*) n FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
   )
-  .all(domain.slug, horizon);
+  .get(domain.slug, horizon)!.n;
 
 if (rows.length === 0) {
   console.log(`${path}: no scored ${domain.slug} article inside the ${HORIZON_DAYS}-day horizon — nothing to calibrate against.`);
@@ -39,6 +45,13 @@ console.log(`domain     ${domain.slug} (${domain.label})`);
 console.log(`corpus     ${path} — ${rows.length} scored articles inside the ${HORIZON_DAYS}-day horizon`);
 console.log(`span       ${dates[0]!.slice(0, 10)} .. ${dates.at(-1)!.slice(0, 10)}  (${spanDays.toFixed(1)} days)`);
 console.log(`scoring    ${scoring.length} above zero (${((100 * scoring.length) / rows.length).toFixed(0)}%), sum ${scores.reduce((t, s) => t + s, 0)}`);
+if (domain.subject) {
+  const cut = ungated - rows.length;
+  console.log(
+    `subject    ${rows.length} of ${ungated} scored rows are on this domain's subject` +
+      ` — the gate holds back ${cut} (${((100 * cut) / Math.max(1, ungated)).toFixed(0)}%)`
+  );
+}
 console.log(`top scores ${scores.slice(0, 10).join(' ')}`);
 console.log(`\nlive constants: BASE=${BASE} HALF_LIFE_DAYS=${HALF_LIFE_DAYS} DIVISOR=${DIVISOR}\n`);
 
@@ -46,13 +59,24 @@ console.log(`\nlive constants: BASE=${BASE} HALF_LIFE_DAYS=${HALF_LIFE_DAYS} DIV
 // windows are wildly different — Krebs reaches back two months, hnrss two days
 // — so a corpus-wide articles/day divides every feed's output by the longest
 // window and lands 3x low.
+//
+// Grouped in TypeScript rather than by SQL, because the subject gate is a
+// predicate over the article text and cannot be a WHERE clause — the rows are
+// already read and already gated above.
 const today = new Date(now).toISOString().slice(0, 10);
-const feeds = db
-  .query<{ source: string; n: number; sum: number; oldest: string }, [string, string]>(
-    `SELECT source, COUNT(*) n, SUM(score) sum, MIN(published_at) oldest FROM articles
-     WHERE domain = ? AND score IS NOT NULL AND substr(published_at, 1, 10) < ? GROUP BY source ORDER BY source`
-  )
-  .all(domain.slug, today);
+const byFeed = new Map<string, { source: string; n: number; sum: number; oldest: string }>();
+for (const r of rows) {
+  if (r.published_at.slice(0, 10) >= today) continue;
+  const feed = byFeed.get(r.source);
+  if (feed) {
+    feed.n += 1;
+    feed.sum += r.score;
+    if (r.published_at < feed.oldest) feed.oldest = r.published_at;
+  } else {
+    byFeed.set(r.source, { source: r.source, n: 1, sum: r.score, oldest: r.published_at });
+  }
+}
+const feeds = [...byFeed.values()].sort((a, b) => a.source.localeCompare(b.source));
 
 console.log('per-feed rate over its own RSS window (today excluded, it is still filling):');
 let dailyScore = 0;

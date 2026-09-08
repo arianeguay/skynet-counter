@@ -146,8 +146,9 @@ stopped moving.
 
 Config lives in two places, and the split is forced rather than chosen:
 
-- **`src/lib/domains/<slug>.ts`** — keyword weights, `guidance`, `divisor`, label. One
-  file per domain; `domains/index.ts` is the registry that lists them.
+- **`src/lib/domains/<slug>.ts`** — keyword weights, the optional `subject` list,
+  `guidance`, `divisor`, label. One file per domain; `domains/index.ts` is the
+  registry that lists them.
 - **`.studio/inputs/<slug>.input.yaml`** — the feed list, and only the feed list. The
   `fetch` map stage fans out over `input.feeds`, and Studio reads YAML, not TypeScript.
 
@@ -269,6 +270,75 @@ the way `dedupe` does, run `matchedKeywords` over the result and read the per-ke
 hit counts. A keyword firing on 40%+ of articles is measuring the beat. A keyword
 firing zero times is dead weight, and a table of those is a counter stuck at its
 floor.
+
+### The subject gate: what a counter is about, not what goes wrong in it
+
+A keyword table measures **severity**, and it can only do that inside a subject it
+is allowed to assume. `cybersecurite`'s feeds are all incident press, so every
+article reaching the table is already on its beat and severity is the only open
+question. `environment` is not built that way: four of its six feeds are general
+climate press, and its table names quantities in the physical world — `aquifer`,
+`ratepayer`, `energy demand`, `gas turbine` — which those feeds say constantly
+about things that have nothing to do with computing. Measured on the reported
+cases: an oil spill reaching an aquifer scored **23**, and farms going under on
+fuel prices scored **20**, on a counter whose tagline is what AI compute takes
+(STU-1291). Both are real stories. No weight separates them from the beat, because
+in both the keyword is doing exactly the job it was picked for.
+
+So a domain may declare `subject`, a list of terms naming what the counter is
+about. An article containing none of them has no keywords available to it and
+scores nothing, whatever else its text holds.
+
+**The subject list wants the opposite property from the keyword table**, which is
+why it is a second list rather than more entries in the first. STU-1218 threw
+`data center` out of `environment`'s keyword table for appearing in nearly every
+article on the beat; that is precisely what makes it the best possible subject
+term. A term that fires on 40%+ of on-topic articles is dead weight as severity
+and ideal as topicality. Read the same measurement twice, for the two purposes.
+
+`mentionsSubject()` matches **whole tokens**, unlike `matchedKeywords()`'s
+substring scan — the list carries short words that live inside unrelated long
+ones, and `ai` as a substring matches aircraft, said, available and rain. The cost
+is inflections: a subject list spells its plurals out (`data center` *and* `data
+centers`), and `keywords.test.ts` holds that cost as a test rather than leaving it
+to be discovered on a sweep.
+
+The gate runs in two places, from one definition in
+[keywords.ts](src/lib/keywords.ts):
+
+- **When the article is scored.** `dedupe` builds `candidate_keywords` through
+  `candidateKeywords()`, so an off-subject article reaches the scorer with an empty
+  list and rule 6 makes it a 0 nothing had to reason about — the stage that costs
+  tokens is the one that stops seeing those articles. `validate-scores` recomputes
+  the same gate from the domain module, so a score claimed on an off-subject
+  article is rejected as not present.
+- **When the counter is read.** `scoredHistory()` in [db.ts](src/lib/db.ts) is the
+  one query behind `aggregate`, `readBalance`, `readCounterTrend` and
+  `calibrate`, and `readSnapshot` filters the signal log the same way. This is
+  there for the reason `counterHistory` recomputes rather than storing a daily
+  snapshot: the gate is a pure function of text the row already carries, so
+  correcting the list corrects every past reading at once. Gating only at scoring
+  time would have left those oil spills in the counter for the whole
+  `HORIZON_DAYS` after the fix that names them — and would bake each revision of
+  the list into a month of history.
+
+A domain with no `subject` pays nothing: `scoredHistory` takes the query it always
+took and never reads a summary it does not need.
+
+**What the gate costs.** A story genuinely about the AI buildout that never names
+it — "regulators approve three gas turbines for a load the utility would not
+identify" — is held back, and nothing downstream recovers it.
+`environment.test.ts` holds that case so the trade stays visible. It is the right
+trade only while the alternative is counting every oil spill; a subject list that
+starts costing real stories is a list to widen, not a mechanism to remove.
+
+**`environment`'s list is reasoned, not measured.** The keyword table was picked
+by running the probe in "Picking a domain's keywords" over 70 hydrated articles;
+the subject list was not, because the sandbox the fix was written in has no egress
+to the feeds. Run that probe, then `bun run calibrate` — it now reports what
+fraction of the stored corpus the gate holds back, and `divisor: 24` was picked
+from the **ungated** score per day, so it is too small by however much the gate
+cuts.
 
 ### Polarity: not every counter reads the same way
 
@@ -505,10 +575,13 @@ every domain, so a copy there would be four tables to keep in step instead of on
 reads them from there. The validator still recomputes from the domain module and never
 from that output, so a batch cannot be approved by trusting what it was handed.
 
-Changing a keyword or a weight means editing, in this order:
+Changing a keyword, a weight or a subject term means editing, in this order:
 
 1. `src/lib/domains/<slug>.ts` — the only copy that decides anything
 2. `README.md` — the published weights table, for the cybersecurity domain
+
+A subject list is not a keyword table with the weights left off; the two want
+opposite properties. See "The subject gate" above before adding to either.
 
 ## The database
 
