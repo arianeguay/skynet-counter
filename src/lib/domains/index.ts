@@ -13,6 +13,15 @@ export interface Domain {
   // What this counter counts, printed under the gauge.
   tagline: string;
   keywords: Record<string, number>;
+  // What the counter is about, as opposed to what goes wrong inside it. A
+  // keyword table measures severity and can only do that inside a subject it is
+  // allowed to assume; a domain whose feeds carry more than its own beat has to
+  // state that subject instead, and an article mentioning none of these terms
+  // scores nothing whatever else it contains (STU-1291). Optional, and absent is
+  // the right answer for a domain whose feed list is already the filter.
+  //
+  // Matched whole-token by `mentionsSubject`, so plurals are spelled out.
+  subject?: readonly string[];
   // Which way is up for this counter. Two of the four domains this project set out
   // to build have no risk signal at all — nobody publishes their harms as news —
   // while their good news is published weekly, so the number they can carry is a

@@ -1,5 +1,5 @@
 import { readContext, emit } from './rss.ts';
-import { openDb, readSnapshot, SWEEP_RETENTION_DAYS } from '../../src/lib/db.ts';
+import { openDb, readSnapshot, scoredHistory, SWEEP_RETENTION_DAYS } from '../../src/lib/db.ts';
 import { BASE, HORIZON_DAYS, normalizedSignal, counterFrom } from '../../src/lib/counter.ts';
 import { currentDomain } from '../../src/lib/domains/index.ts';
 
@@ -38,11 +38,12 @@ db.transaction(() => {
 // back down to BASE without a separate silence rule. `source` rides along because
 // the signal is normalised per feed — each covers a different slice of the
 // horizon, and the raw sum reads a young history as a safe world (STU-1222).
-const history = db
-  .query<{ score: number; published_at: string; source: string }, [string, string]>(
-    'SELECT score, published_at, source FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
-  )
-  .all(domain.slug, new Date(now - HORIZON_DAYS * 864e5).toISOString());
+//
+// Through `scoredHistory` rather than a query of its own, so the number written
+// here and the number the page recomputes are the same number: it also drops the
+// rows that are off the domain's subject, which is what keeps a counter titled
+// after AI compute from being moved by an oil spill (STU-1291).
+const history = scoredHistory(db, domain, new Date(now - HORIZON_DAYS * 864e5).toISOString());
 
 // The divisor is the domain's, not a shared constant: it is picked from a feed
 // set's measured score per day, so a quieter domain reading cybersecurity's

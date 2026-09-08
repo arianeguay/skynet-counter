@@ -1,11 +1,11 @@
 import { readContext, emit, type RawArticle } from './rss.ts';
-import { matchedKeywords, mitigatedMatches, scoreFor } from '../../src/lib/keywords.ts';
+import { candidateKeywords, mitigatedMatches, scoreFor } from '../../src/lib/keywords.ts';
 import { currentDomain } from '../../src/lib/domains/index.ts';
 
 // Read from the domain's own module, never from the `keyword_weights` the dedupe
 // stage hands the scorer. The validator's whole value is that it recomputes from
 // a source the batch under test cannot influence (STU-1213).
-const { keywords: weights } = currentDomain();
+const { keywords: weights, subject } = currentDomain();
 
 interface Dropped {
   keyword?: string;
@@ -47,7 +47,11 @@ for (const s of scored) {
     continue;
   }
 
-  const present = new Set(matchedKeywords(`${source.title} ${source.summary}`, weights));
+  // Recomputed through the same gate `dedupe` handed the scorer its candidates
+  // through, from the domain's own module rather than from that output: an
+  // article off the domain's subject has no keywords available to it, so a score
+  // claimed on one is rejected as not present (STU-1291).
+  const present = new Set(candidateKeywords(`${source.title} ${source.summary}`, weights, subject));
   const keywords = s.matched_keywords ?? [];
   const kept = new Set(keywords.map((k) => k.toLowerCase().trim()));
 

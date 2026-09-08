@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { matchedKeywords, normalizeText, scoreFor } from '@/lib/keywords';
+import { candidateKeywords, matchedKeywords, mentionsSubject, normalizeText, scoreFor } from '@/lib/keywords';
 import { cybersecurite } from '@/lib/domains/cybersecurite';
 
 const KEYWORD_WEIGHTS = cybersecurite.keywords;
@@ -92,4 +92,60 @@ test('no keyword is a substring of another', () => {
   for (const a of keys) {
     expect(keys.filter((b) => b.includes(a))).toEqual([a]);
   }
+});
+
+// --- the subject gate (STU-1291) ---
+
+const AI_SUBJECT = ['ai', 'data center', 'data centers', 'gpu', 'compute'];
+
+test('no subject list means every article is on subject', () => {
+  expect(mentionsSubject('an oil spill off the coast of Newfoundland')).toBe(true);
+  expect(mentionsSubject('an oil spill off the coast of Newfoundland', [])).toBe(true);
+});
+
+test('an article naming the subject passes', () => {
+  expect(mentionsSubject('The rush to power data centers is weakening the Clean Air Act', AI_SUBJECT)).toBe(true);
+  expect(mentionsSubject('AI-driven demand is reopening a coal plant', AI_SUBJECT)).toBe(true);
+});
+
+// The two the user actually saw on the live site.
+test.each([
+  'A pipeline rupture spilled 4,000 barrels into the aquifer that supplies three counties',
+  'Farmers say diesel and gas prices will bankrupt them before the harvest, and the ratepayer is next',
+])('an off-subject story does not pass the gate: %s', (text) => {
+  expect(mentionsSubject(text, AI_SUBJECT)).toBe(false);
+});
+
+// Why the gate is whole-token where `matchedKeywords` is substring: "ai" as a
+// substring is inside aircraft, said, available, rain and maintain, and a gate
+// that lets those through is not a gate.
+test.each(['aircraft emissions rose again', 'available capacity said to be falling', 'rain maintained the aquifer'])(
+  '"ai" inside a longer word does not pass the gate: %s',
+  (text) => {
+    expect(mentionsSubject(text, AI_SUBJECT)).toBe(false);
+  }
+);
+
+test('a term inside a longer word does not pass either', () => {
+  expect(mentionsSubject('the study computed a regional total', AI_SUBJECT)).toBe(false);
+  expect(mentionsSubject('the study needs compute to run', AI_SUBJECT)).toBe(true);
+});
+
+// Whole-token matching is what costs the inflections `matchedKeywords` gets for
+// free, so a subject list has to spell its plurals out. This is that cost, held
+// where it can be seen rather than discovered on a live sweep.
+test('a plural only matches when the list carries it', () => {
+  expect(mentionsSubject('the data centers drank the aquifer dry', ['data center'])).toBe(false);
+  expect(mentionsSubject('the data centers drank the aquifer dry', ['data center', 'data centers'])).toBe(true);
+});
+
+test('the gate empties the candidate list rather than filtering it', () => {
+  const weights = { aquifer: 11, ratepayer: 9 };
+  const text = 'A pipeline rupture reached the aquifer, and the ratepayer will fund the cleanup';
+  expect(candidateKeywords(text, weights).sort()).toEqual(['aquifer', 'ratepayer']);
+  expect(candidateKeywords(text, weights, AI_SUBJECT)).toEqual([]);
+  expect(candidateKeywords(`${text}. The data center next door is unaffected.`, weights, AI_SUBJECT).sort()).toEqual([
+    'aquifer',
+    'ratepayer',
+  ]);
 });

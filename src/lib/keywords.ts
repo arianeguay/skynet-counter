@@ -55,3 +55,43 @@ export function mitigatedMatches(text: string, keywords: string[]): string[] {
   }
   return flagged;
 }
+
+// Whether `text` is about a domain's subject at all — the gate that runs before
+// the keyword table gets a say.
+//
+// A keyword table measures *severity*, and it can only do that inside a subject
+// it can assume. `environment` could not: its table names quantities and
+// decisions in the physical world ("aquifer", "ratepayer", "gas turbine") while
+// its feeds are general climate press, so an oil spill and a farm going under on
+// fuel prices both scored — real stories, on the wrong beat, on a counter whose
+// tagline says AI compute (STU-1291). The subject is the thing the tagline
+// claims; the table is what went wrong inside it.
+//
+// Matching is whole-token, not `matchedKeywords`' substring: the subject list
+// carries short words that live inside longer unrelated ones, and "ai" as a
+// substring matches aircraft, said, available and rain. Inflections are the cost
+// — "data center" no longer covers "data centers" — so a subject list spells its
+// plurals out rather than relying on a prefix.
+//
+// A domain with no subject list is ungated, which is the right default: a domain
+// whose feeds are all on its beat already has the gate its feed list gives it.
+export function mentionsSubject(text: string, subject?: readonly string[]): boolean {
+  if (!subject || subject.length === 0) return true;
+  const haystack = ` ${normalizeText(text)} `;
+  return subject.some((term) => haystack.includes(` ${normalizeText(term)} `));
+}
+
+// The keywords an article may be scored on: none at all when it is off the
+// domain's subject, however much of the table its text happens to contain.
+//
+// This is the one definition of the gate. `dedupe` calls it to build
+// `candidate_keywords` and `validate-scores` calls it to recompute them, for the
+// same reason both already call `matchedKeywords` — a gate the two stages
+// implemented separately would be two rules that have to agree.
+export function candidateKeywords(
+  text: string,
+  weights: Record<string, number>,
+  subject?: readonly string[]
+): string[] {
+  return mentionsSubject(text, subject) ? matchedKeywords(text, weights) : [];
+}

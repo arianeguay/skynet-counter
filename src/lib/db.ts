@@ -1,7 +1,8 @@
 import { Database } from 'bun:sqlite';
 import { BASE, HISTORY_WINDOW_DAYS, HORIZON_DAYS, counterHistory, type Sourced } from './counter';
-import { DOMAINS, type Domain } from './domains';
+import { DOMAINS, domainBySlug, type Domain } from './domains';
 import { normalizedDeviation, type DomainDeviation } from './balance';
+import { mentionsSubject } from './keywords';
 
 // Read per call, not once at module load: capturing it at import time meant
 // whichever test file pulled this module in first decided the path for the whole
@@ -391,6 +392,44 @@ export function readFeedErrors(db: Database, domain: string, now = Date.now()): 
   );
 }
 
+// The scored rows a domain's counter is allowed to count: inside `since`, and —
+// where the domain declares one — actually on its subject.
+//
+// The gate is applied here, on read, rather than only at scoring time, for the
+// reason `counterHistory` recomputes the counter instead of storing a daily
+// snapshot: it is a pure function of text the row already carries, so the list
+// can be corrected and every reading corrects with it. Gating only at scoring
+// time would leave a wrong list baked into `HORIZON_DAYS` of history — and it
+// would have left the oil spills and the fuel-price stories in the counter for
+// thirty days after the fix that names them (STU-1291).
+//
+// A domain with no subject list pays nothing: it takes the same query it always
+// took, and never reads a summary it does not need.
+export function scoredHistory(db: Database, domain: Domain, since: string): Sourced[] {
+  if (!domain.subject) {
+    return db
+      .query<Sourced, [string, string]>(
+        'SELECT score, source, published_at FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
+      )
+      .all(domain.slug, since);
+  }
+  return db
+    .query<Sourced & { title: string; summary: string }, [string, string]>(
+      'SELECT score, source, published_at, title, summary FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
+    )
+    .all(domain.slug, since)
+    .filter((r) => mentionsSubject(`${r.title} ${r.summary}`, domain.subject))
+    .map(({ score, source, published_at }) => ({ score, source, published_at }));
+}
+
+// How many rows the log reads before the subject gate thins them. The gate is a
+// JS predicate, so it cannot be a WHERE clause and the LIMIT has to be taken
+// wide enough that a gated domain still fills a page. Wide, not unbounded: a
+// domain whose feeds are almost entirely off its subject shows a short log,
+// which is the honest reading of that feed set rather than a reason to scan the
+// whole table on every render.
+const LOG_OVERREAD = 5;
+
 export function readSnapshot(domain: string, limit = 40): CounterSnapshot {
   const db = openDb();
   try {
@@ -399,11 +438,19 @@ export function readSnapshot(domain: string, limit = 40): CounterSnapshot {
         'SELECT value, updated_at FROM counter WHERE domain = ?'
       )
       .get(domain);
+    // The log answers "what is this counter reading", so a row the counter does
+    // not count does not belong in it. Before the subject gate the log was the
+    // most visible half of STU-1291: an oil spill scoring 0 still printed under
+    // SIGNAL LOG as NOMINAL, and on a domain whose feeds are general climate
+    // press most of the page read as news with nothing to do with AI.
+    const subject = domainBySlug(domain)?.subject;
     const rows = db
       .query<ArticleRow, [string, number]>(
         'SELECT * FROM articles WHERE domain = ? AND score IS NOT NULL ORDER BY published_at DESC LIMIT ?'
       )
-      .all(domain, limit);
+      .all(domain, subject ? limit * LOG_OVERREAD : limit)
+      .filter((r) => mentionsSubject(`${r.title} ${r.summary}`, subject))
+      .slice(0, limit);
     return {
       counter: counter?.value ?? 0,
       updatedAt: counter?.updated_at ?? new Date(0).toISOString(),
@@ -453,12 +500,7 @@ export function readBalance(): DomainDeviation[] {
         .get(domain.slug);
       if (!firstSweep?.first || firstSweep.first > since) continue;
 
-      const rows = db
-        .query<Sourced, [string, string]>(
-          'SELECT score, source, published_at FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
-        )
-        .all(domain.slug, since);
-      const history = counterHistory(rows, Date.now(), BASE, domain.divisor);
+      const history = counterHistory(scoredHistory(db, domain, since), Date.now(), BASE, domain.divisor);
       deviations.push({ slug: domain.slug, polarity: domain.polarity, deviation: normalizedDeviation(history) });
     }
     return deviations;
@@ -496,12 +538,7 @@ export function readCounterTrend(domain: Domain): number[] {
     const ageDays = Math.floor((Date.now() - Date.parse(firstSweep.first)) / 864e5);
     const windowDays = Math.min(TREND_WINDOW_DAYS, ageDays);
     const since = new Date(Date.now() - (windowDays + HORIZON_DAYS) * 864e5).toISOString();
-    const rows = db
-      .query<Sourced, [string, string]>(
-        'SELECT score, source, published_at FROM articles WHERE domain = ? AND score IS NOT NULL AND published_at >= ?'
-      )
-      .all(domain.slug, since);
-    return counterHistory(rows, Date.now(), BASE, domain.divisor, windowDays);
+    return counterHistory(scoredHistory(db, domain, since), Date.now(), BASE, domain.divisor, windowDays);
   } finally {
     db.close();
   }

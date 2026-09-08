@@ -296,6 +296,17 @@ so its bands and accent read the opposite way (see CLAUDE.md's Polarity section)
 validator recomputes from each domain's own module; the scorer is handed the same
 table through the `dedupe` stage output, so neither carries a copy of its own.
 
+A domain may also carry a **subject list**, and `environment` does. A keyword table
+measures how bad a story is; it can only do that inside a subject it is allowed to
+assume, and four of that domain's six feeds are general climate press. So an oil
+spill naming an `aquifer`, and farms going under on fuel prices naming the
+`ratepayer` and the `energy demand` behind them, both scored in the twenties on a
+counter whose subject is AI compute. An article naming none of the subject's terms
+now scores nothing, whatever else it contains — applied when the article is scored
+and again when the counter is read, so correcting the list corrects the history with
+it. Domains whose feed list is already the filter carry no subject list and are
+unaffected.
+
 | Keyword | Weight | | Keyword | Weight |
 |---|---|---|---|---|
 | loss of control | 15 | | zero-day | 8 |

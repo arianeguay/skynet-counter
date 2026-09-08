@@ -13,6 +13,7 @@ import {
   readFeedErrors,
   readHostOutage,
   readSnapshot,
+  scoredHistory,
 } from '@/lib/db';
 import { DEFAULT_DOMAIN, DOMAINS, currentDomain, domainBySlug } from '@/lib/domains';
 
@@ -210,6 +211,10 @@ test('reopening after the rename leaves the renamed rows alone', () => {
   ]);
 });
 
+// The summary names a data centre because `environment` gates its rows on its
+// subject and these tests are about the domain partition, not about that gate —
+// a fixture reading "summary" is off every subject and would vanish from the log
+// for a reason none of them is testing (STU-1291).
 function insertScored(domain: string, url: string, score: number): void {
   const db = openDb();
   db.query(
@@ -220,7 +225,7 @@ function insertScored(domain: string, url: string, score: number): void {
     `${domain} story`,
     `${domain} feed`,
     '2026-09-01T00:00:00.000Z',
-    'summary',
+    'A data center summary.',
     score,
     '[]',
     '',
@@ -228,6 +233,58 @@ function insertScored(domain: string, url: string, score: number): void {
   );
   db.close();
 }
+
+// --- the subject gate, applied on read (STU-1291) ---
+
+function insertText(domain: string, url: string, title: string, summary: string, score: number): void {
+  const db = openDb();
+  db.query(
+    'INSERT INTO articles (domain, url, title, source, published_at, summary, score, matched_keywords, evidence, scored_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(domain, url, title, 'Inside Climate News', new Date(Date.now() - 864e5).toISOString(), summary, score, '[]', '', new Date().toISOString());
+  db.close();
+}
+
+// Rows scored before the gate existed keep their score in the table. The gate is
+// a pure function of text the row already carries, so it is applied on read and
+// the correction is immediate — the alternative is a wrong counter and a log full
+// of oil spills for the thirty days it takes the horizon to forget them.
+test('an off-subject article that was already scored drops out of the log', () => {
+  tempDbPath();
+  insertText(
+    'environment',
+    'https://example.com/spill',
+    'Pipeline rupture reaches the aquifer',
+    'Four thousand barrels, and the ratepayer will fund the cleanup.',
+    23
+  );
+  insertText(
+    'environment',
+    'https://example.com/dc',
+    'Data centers tripled their water consumption',
+    'The aquifer that supplies three counties is being drawn down.',
+    24
+  );
+
+  expect(readSnapshot('environment').articles.map((a) => a.url)).toEqual(['https://example.com/dc']);
+});
+
+// The same rows, read the way the counter reads them.
+test('scoredHistory hands the counter only the rows on the domain subject', () => {
+  tempDbPath();
+  insertText('environment', 'https://example.com/spill', 'Pipeline rupture reaches the aquifer', 'The ratepayer pays.', 23);
+  insertText('environment', 'https://example.com/dc', 'Data centers tripled their water consumption', 'Drawn down.', 24);
+
+  const db = openDb();
+  const since = new Date(Date.now() - 30 * 864e5).toISOString();
+  const gated = scoredHistory(db, domainBySlug('environment')!, since);
+  const ungated = scoredHistory(db, domainBySlug('cybersecurite')!, since);
+  db.close();
+
+  expect(gated.map((r) => r.score)).toEqual([24]);
+  // A domain with no subject list is untouched by any of this.
+  expect(ungated).toEqual([]);
+  expect(domainBySlug('cybersecurite')!.subject).toBeUndefined();
+});
 
 // The whole point of the partition: a domain's counter must be a statement about
 // that domain's feeds and nothing else.
