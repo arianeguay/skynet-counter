@@ -172,6 +172,18 @@ Adding one makes Next prerender each domain at build time, so the site serves th
 counter as it stood when the image was built — and a frozen counter looks exactly like
 a working one until someone reads the timestamp. `page.test.tsx` asserts the export.
 
+A domain may carry an `embed` — one third-party panel drawn under the counter,
+rendered by [DomainEmbed](src/components/DomainEmbed.tsx). `environment` carries
+TheAIMeters' live totals: the gauge measures how loudly the press is reporting the
+cost, the meters measure the cost itself, and neither derives from the other. It
+is a field on the domain rather than a `slug === '...'` branch in the page for the
+same reason the feed list and the divisor are — the page renders whatever domain
+it is handed and nothing in it knows which. The frame is sandboxed to
+`allow-scripts allow-same-origin`, which is what a stats widget needs and nothing
+more: an embed cannot navigate the page it sits in, open a window or start a
+download. Those two together are only dangerous on a same-origin frame, and this
+is not one.
+
 [DomainNav](src/components/DomainNav.tsx) is driven by `DOMAINS` and renders nothing
 below two domains, so it stays out of the way until there is something to switch to and
 needs no edit when there is.
@@ -271,6 +283,24 @@ hit counts. A keyword firing on 40%+ of articles is measuring the beat. A keywor
 firing zero times is dead weight, and a table of those is a counter stuck at its
 floor.
 
+### A domain can carry more than one language
+
+`environment` does, since Radio-Canada's fils environnement and techno were added
+(STU-1292). Nothing in the pipeline is language-aware — the matcher, the gate and
+the validator all run the same way — so a second language is entirely a matter of
+what the two lists carry, plus the two normalisation rules the section below
+records: accents fold, and a capitalised subject term is matched case-sensitively.
+
+The French keyword entries are **mirrors at the same weight**, not a separately
+measured table: the same story is the same score whichever language reported it,
+and `environment.test.ts` asserts each pair. Only terms with an exact equivalent
+are there. `ratepayer` has no clean Québécois counterpart and `grid strain` no
+settled phrase, so both are simply missing on the French side rather than guessed
+at — a hole is cheaper than a word that has not been measured, which is the whole
+lesson of STU-1218. `délestage` is the one entry to check first when the probe
+runs: Québec press uses it for hospital scheduling far more than for the grid,
+and it only stays defensible because the subject gate runs before it.
+
 ### The subject gate: what a counter is about, not what goes wrong in it
 
 A keyword table measures **severity**, and it can only do that inside a subject it
@@ -302,6 +332,24 @@ ones, and `ai` as a substring matches aircraft, said, available and rain. The co
 is inflections: a subject list spells its plurals out (`data center` *and* `data
 centers`), and `keywords.test.ts` holds that cost as a test rather than leaving it
 to be discovered on a sweep.
+
+**A subject term carrying a capital is matched case-sensitively**, and `AI` is the
+term the rule exists for. French elides — *j'ai*, *n'ai*, *qu'ai* — and
+normalisation flattens every one of those to the token `ai`, so a case-insensitive
+`ai` opens the gate on any article carrying a first-person quote, which is most
+reporting. Adding Radio-Canada's fils had the gate running exactly backwards: a
+déversement passed on "j'ai vu", and a story about *l'IA* and *les centres de
+données* failed (STU-1292). Nothing but the capitals separates the acronym from
+the verb. The residual cost is an ALL-CAPS headline, where "J'AI" reads as the
+acronym — bounded, because the gate reads 4000 characters of body prose and a
+headline is a few tokens of it.
+
+Normalisation also **folds accents** rather than dropping them. They used to fall
+through the punctuation class, so "demande énergétique" became "demande nerg
+tique" — which worked only because both sides of a comparison were mangled
+identically, and stopped working the moment a French feed spelled a word
+unaccented in the headline and accented in the body. Write French terms
+unaccented; an accented article still reaches them.
 
 The gate runs in two places, from one definition in
 [keywords.ts](src/lib/keywords.ts):

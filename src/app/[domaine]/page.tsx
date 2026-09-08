@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { CounterHero } from '@/components/CounterHero';
 import { ArticleLog } from '@/components/ArticleLog';
 import { BalanceBand } from '@/components/BalanceBand';
+import { DomainEmbed } from '@/components/DomainEmbed';
 import { DomainNav } from '@/components/DomainNav';
 import { FeedAlert } from '@/components/FeedAlert';
 import { readBalance, readCounterTrend, readSnapshot } from '@/lib/db';
@@ -60,6 +61,8 @@ export default async function DomainPage({ params }: { params: Promise<{ domaine
         <h2 className="mb-3 text-xs tracking-[0.3em] text-ash">/// SIGNAL LOG</h2>
         <ArticleLog articles={articles} />
       </section>
+
+      <DomainEmbed embed={domain.embed} />
     </main>
   );
 }

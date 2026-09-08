@@ -341,6 +341,18 @@ and again when the counter is read, so correcting the list corrects the history 
 it. Domains whose feed list is already the filter carry no subject list and are
 unaffected.
 
+`environment` is also the first domain reading a second language: Radio-Canada's
+fils environnement and techno, with French mirrors of the keyword table at the same
+weights. Nothing in the pipeline is language-aware — a second language is entirely
+what the two lists carry, plus two normalisation rules: accents fold, and a subject
+term written with a capital (`AI`, `IA`) is matched case-sensitively, so the French
+verb in *j'ai* does not open the gate.
+
+The environment page also carries [TheAIMeters](https://www.theaimeters.com)' live
+totals under the counter, in a sandboxed frame. The gauge measures how loudly the
+press is reporting the cost of AI compute; the meters measure the cost itself, and
+neither derives from the other.
+
 | Keyword | Weight | | Keyword | Weight |
 |---|---|---|---|---|
 | loss of control | 15 | | zero-day | 8 |
