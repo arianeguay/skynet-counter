@@ -230,6 +230,40 @@ Runs one sweep now rather than waiting out the `pipeline` container's sleep. It 
 *inside* that container, so it writes the volume the site reads — a sweep started on the
 host would write a `data/skynet.db` nothing serves.
 
+### Deploying itself
+
+`make deploy` is the manual trip. The server can also make it on its own, for every
+commit CI has already proved:
+
+```bash
+make install-watcher     # one sudo on the server, once
+make watcher-log         # what it has been doing
+```
+
+The server **pulls**; GitHub never connects to it. Nothing is exposed to the internet,
+and no key or tunnel credential is stored in a GitHub secret — the only failure mode
+that trade buys is a deploy landing up to one poll (five minutes) late.
+
+The two halves:
+
+- **`.github/workflows/ci.yml`** moves a `green` branch to the commit it just tested,
+  on a push to `main` that passed. `green` is main's history with the untested commits
+  left off.
+- **[docker/deploy-watcher.sh](docker/deploy-watcher.sh)** fetches `green` every five
+  minutes, fast-forwards to it and runs `docker compose up -d --build`. It never
+  resets: a checkout that has diverged — someone debugging on the server — stops the
+  deploy rather than losing their work. A commit whose build fails is not recorded, so
+  the next pass retries it instead of reporting a server that is current when it is not.
+
+It also waits out a sweep in flight. `docker compose up` recreates the `pipeline`
+container, and a scoring stage that gets SIGTERM has already been billed for the tokens
+it will never write; `run-loop.sh` stamps `/data/schedule/sweeping` for exactly as long
+as a sweep runs.
+
+`make deploy` still works and still deploys `main` directly, untested commits included.
+That is the point of keeping it: a human asking for one is a different act from the
+loop doing it silently.
+
 ## API
 
 `GET /api/skynet` — the last snapshot, never a fresh run:

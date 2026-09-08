@@ -35,6 +35,13 @@ SWEEP_TIMEOUT="${SWEEP_TIMEOUT:-1800}"
 STATE="${SKYNET_STATE_DIR:-/data/schedule}"
 mkdir -p "$STATE"
 
+# Stamped while a sweep runs, so the deploy watcher can hold a rebuild back
+# rather than SIGTERM a scoring stage it has already paid for. Cleared here
+# because a container killed mid-sweep leaves its stamp behind, and a marker
+# nothing clears would defer every deploy from then on.
+SWEEP_MARKER="$STATE/sweeping"
+rm -f "$SWEEP_MARKER"
+
 # Never sleep longer than this in one go, so a schedule change on restart is
 # picked up without waiting out the longest interval.
 MAX_SLEEP="${MAX_SLEEP:-900}"
@@ -51,6 +58,7 @@ while true; do
 
     if [ "$now" -ge "$due" ]; then
       echo "--- $(date -u +%FT%TZ) $domain sweep start"
+      date +%s > "$SWEEP_MARKER"
       # The interval is counted from the end of the sweep, not its start: a
       # scoring stage can run for minutes, and an interval measured from the
       # start would compound that drift into a domain sweeping early.
@@ -60,6 +68,7 @@ while true; do
       else
         echo "--- $domain sweep failed, next attempt in ${interval}s" >&2
       fi
+      rm -f "$SWEEP_MARKER"
       due=$(( $(date +%s) + interval ))
       echo "$due" > "$due_file"
     fi

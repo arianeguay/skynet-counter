@@ -1,0 +1,26 @@
+# Supervises docker/deploy-watcher.sh on the server. `make install-watcher`
+# fills the two placeholders in and installs this; it is a template rather than
+# a finished unit because the checkout path and the user that owns it are host
+# facts, and the one copy of those already lives in .env.
+#
+# systemd rather than a compose service on purpose: the watcher runs
+# `docker compose up -d --build` over this very project, and a service that
+# rebuilds itself gets SIGTERM in the middle of the command doing it.
+[Unit]
+Description=skynet-counter: deploy every commit CI has proved
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__REPO__
+Environment=DEPLOY_POLL_SECONDS=300
+ExecStart=__REPO__/docker/deploy-watcher.sh
+# The loop swallows its own failures, so a restart here means the process died
+# outright — a reboot, or docker not up yet.
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
