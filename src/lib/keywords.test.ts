@@ -149,3 +149,33 @@ test('the gate empties the candidate list rather than filtering it', () => {
     'ratepayer',
   ]);
 });
+
+// --- French, and the acronym that is also a verb (STU-1292) ---
+
+test('accents fold rather than shatter the word around them', () => {
+  expect(normalizeText('demande énergétique')).toBe('demande energetique');
+  expect(matchedKeywords('la demande energetique grimpe', { 'demande énergétique': 11 })).toEqual([
+    'demande énergétique',
+  ]);
+});
+
+// The gate ran exactly backwards on French before this: `flatten` turns "j'ai"
+// into the token "ai", so a case-insensitive `ai` passed any article carrying a
+// first-person quote — which is most reporting — while a story genuinely about
+// l'IA failed for spelling the acronym the French way.
+test("the French verb in \"j'ai\" does not open the gate", () => {
+  expect(mentionsSubject("j'ai vu le déversement se répandre", ['AI', 'IA'])).toBe(false);
+  expect(mentionsSubject("n'ai rien vu, dit le maire", ['AI', 'IA'])).toBe(false);
+});
+
+test('the acronym still opens it, in either language', () => {
+  expect(mentionsSubject('AI data centres are drinking the aquifer', ['AI', 'IA'])).toBe(true);
+  expect(mentionsSubject("l'IA fait exploser la consommation d'eau", ['AI', 'IA'])).toBe(true);
+});
+
+// The convention is readable in the list itself: a term with a capital is an
+// acronym and matched case-sensitively, everything else is not.
+test('a lowercase term stays case-insensitive', () => {
+  expect(mentionsSubject('DATA CENTERS ARE THE STORY', ['data centers'])).toBe(true);
+  expect(mentionsSubject('Data Centers are the story', ['data centers'])).toBe(true);
+});

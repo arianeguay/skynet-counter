@@ -20,3 +20,18 @@ feeds:
   # stories actually break.
   - source: HN datacenter energy
     url: https://hnrss.org/newest?q=datacenter+OR+%22data+center%22+OR+emissions+OR+%22power+grid%22&points=50
+  # The first French sources on any domain, added 2026-09-08 (STU-1292). Both are
+  # general fils — environnement covers the whole climate beat, techno covers all
+  # of technology — so neither is filtered on this domain's subject at the source.
+  # The subject gate is what makes them safe: an article naming no AI and no
+  # centre de données reaches the scorer with nothing to score. Until that gate
+  # learned French it ran backwards on these, passing a déversement on "j'ai" and
+  # failing a story about l'IA.
+  #
+  # Not measured against the probe: the sandbox this was added from has no egress
+  # to the feeds. If either URL is wrong the sweep does not fail — `fetch-feed`
+  # emits an empty batch with the reason and the source shows up in FeedAlert.
+  - source: Radio-Canada environnement
+    url: https://ici.radio-canada.ca/info/rss/environnement/en-continu
+  - source: Radio-Canada techno
+    url: https://ici.radio-canada.ca/info/rss/techno/en-continu

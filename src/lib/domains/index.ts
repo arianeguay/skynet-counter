@@ -31,6 +31,13 @@ export interface Domain {
   // The line under the title. It is per domain because "How close are we to The
   // Singularity?" is the wrong question over a gauge where high is good.
   question: { prefix: string; subject: string };
+  // A live panel from somewhere else, drawn under the counter. Optional, and one
+  // per domain at most: it is context for the gauge, not a second gauge.
+  //
+  // It is a field on the domain rather than a `slug === '...'` branch in the
+  // page for the reason the feed list, the divisor and the guidance are: the
+  // page renders whatever domain it is handed, and nothing in it knows which.
+  embed?: { title: string; src: string; height: number };
   // DIVISOR is picked from a feed set's measured score per day, so it does not
   // travel between domains: a domain publishing a tenth of the volume would read
   // a tenth of the counter on cybersecurity's constant. BASE, HALF_LIFE_DAYS and

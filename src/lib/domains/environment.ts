@@ -24,6 +24,20 @@ export const environment: Domain = {
   // reports the size of that cut.
   polarity: 'risk',
   question: { prefix: 'What is the machine', subject: 'drinking' },
+  // TheAIMeters' live totals, under the gauge. The counter above it measures how
+  // loudly the press is reporting the cost; this measures the cost itself, in
+  // litres and kilowatt-hours. Neither derives from the other, which is the
+  // point of showing both — the gauge can sit at its floor through a week nobody
+  // wrote about while these keep climbing.
+  //
+  // The meters are chosen in the query string: prompts, electricity, water, CO2,
+  // GPU hours, models published. `theme=dark` because the site has no light mode
+  // to follow.
+  embed: {
+    title: 'LIVE AI METERS',
+    src: 'https://widget.theaimeters.com/widget?meters=estimated-ai-prompts-last24h%2Celectricity-ai-today%2Cwater-ai-today%2Cco2-ai-today%2Cgpu-hours-today%2Chuggingface-models&theme=dark&lang=en',
+    height: 800,
+  },
   divisor: 24,
   // The gate the keyword table cannot supply. Four of this domain's six feeds
   // are general climate press, and its table names quantities in the physical
@@ -42,7 +56,9 @@ export const environment: Domain = {
   // properties, which is why they are two lists.
   //
   // Whole-token matched, so the plurals are spelled out and "compute" does not
-  // come along inside "computed". Crypto mining is deliberately absent: it is
+  // come along inside "computed". The French terms are written unaccented
+  // because `normalizeText` folds accents on both sides — "centres de données"
+  // in an article reaches this list as "centres de donnees". Crypto mining is deliberately absent: it is
   // the same physics and a different subject, and this counter names AI.
   //
   // Reasoned from the domain's definition, not yet measured against the corpus
@@ -51,11 +67,18 @@ export const environment: Domain = {
   // strict cuts the score per day, and the divisor was picked from the ungated
   // rate.
   subject: [
-    'ai',
+    // Capitalised on purpose: matched case-sensitively, so the French verb in
+    // "j'ai" does not open the gate. See `mentionsSubject` (STU-1292).
+    'AI',
+    'IA',
     'artificial intelligence',
+    'intelligence artificielle',
     'machine learning',
+    'apprentissage automatique',
     'neural network',
     'neural networks',
+    'reseau de neurones',
+    'reseaux de neurones',
     'llm',
     'llms',
     'large language model',
@@ -73,15 +96,20 @@ export const environment: Domain = {
     'data centres',
     'datacenter',
     'datacenters',
+    'centre de donnees',
+    'centres de donnees',
     'server farm',
     'server farms',
     'supercomputer',
     'supercomputers',
+    'superordinateur',
+    'superordinateurs',
     'hyperscaler',
     'hyperscalers',
     'gpu',
     'gpus',
     'cloud computing',
+    'infonuagique',
     'compute',
     'inference',
     'training run',
@@ -100,6 +128,27 @@ export const environment: Domain = {
     'carbon footprint': 10,
     ratepayer: 9,
     curtailment: 8,
+    // The French half, added with Radio-Canada's fils (STU-1292). These are
+    // mirrors of the terms above at the same weights, not a separately measured
+    // table: the same concept in the other language earns the same score. Only
+    // the ones with an exact equivalent are here — "ratepayer" has no clean
+    // Québécois counterpart and "grid strain" no settled phrase, so both are
+    // simply absent rather than guessed at, which is what STU-1218 says to do
+    // with a word that has not been measured.
+    "consommation d'eau": 13,
+    "utilisation de l'eau": 13,
+    'hausse des émissions': 12,
+    'demande énergétique': 11,
+    'demande en électricité': 11,
+    'nappe phréatique': 11,
+    'centrale au charbon': 11,
+    'turbine à gaz': 10,
+    'empreinte carbone': 10,
+    // Québec press uses this for hospital scheduling far more than for the
+    // grid. It only ever gets a chance to fire inside an article the subject
+    // gate has already passed, so the collision is bounded — but it is the
+    // first entry to check when the probe runs.
+    délestage: 8,
   },
   guidance: [
     'This domain scores what AI compute costs the physical world: water drawn,',

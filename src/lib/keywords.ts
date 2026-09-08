@@ -2,8 +2,25 @@ export const MAX_SCORE = 100;
 
 // Feeds render the same phrase as "supply-chain attack", "supply chain attack"
 // or with a typographic hyphen; flattening punctuation makes those one token.
+//
+// Accents are folded rather than dropped. They used to fall through the
+// punctuation class, which turned "demande énergétique" into "demande nerg
+// tique" — harmless while both sides of a comparison were mangled the same way,
+// and not harmless the moment a French feed spells a word unaccented in a
+// headline and accented in the body (STU-1292).
+//
+// Case is kept here and lowered after, so a caller that needs to tell a
+// capitalised acronym from its lowercase homograph has something to read.
+function flatten(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, ' ')
+    .trim();
+}
+
 export function normalizeText(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return flatten(text).toLowerCase();
 }
 
 // The table is a parameter rather than a module constant: each domain carries
@@ -77,9 +94,31 @@ export function mitigatedMatches(text: string, keywords: string[]): string[] {
 // whose feeds are all on its beat already has the gate its feed list gives it.
 export function mentionsSubject(text: string, subject?: readonly string[]): boolean {
   if (!subject || subject.length === 0) return true;
-  const haystack = ` ${normalizeText(text)} `;
-  return subject.some((term) => haystack.includes(` ${normalizeText(term)} `));
+  const lowered = ` ${normalizeText(text)} `;
+  const cased = ` ${flatten(text)} `;
+  return subject.some((term) =>
+    ACRONYM.test(term)
+      ? cased.includes(` ${flatten(term)} `)
+      : lowered.includes(` ${normalizeText(term)} `)
+  );
 }
+
+// A subject term carrying a capital is matched **case-sensitively**, because an
+// acronym is only distinguishable from its homograph by its case, and the
+// homograph can be the commonest word on the feed.
+//
+// "AI" is the term this exists for. French elides — "j'ai", "n'ai", "qu'ai" —
+// and `flatten` turns every one of those into the token "ai", so a
+// case-insensitive `ai` passes any French article carrying a first-person
+// quote, which is most reporting. Measured on Radio-Canada's fils: an oil spill
+// passed the gate on "j'ai vu", while a story about l'IA and les centres de
+// données failed it, which is the gate running exactly backwards (STU-1292).
+// No syntax separates the verb from the acronym; only the capitals do.
+//
+// The cost is a headline set in ALL CAPS, where "J'AI" reads as the acronym.
+// The gate reads 4000 characters of hydrated body prose, not a headline, so
+// that is one token among hundreds rather than the whole decision.
+const ACRONYM = /[A-Z]/;
 
 // The keywords an article may be scored on: none at all when it is off the
 // domain's subject, however much of the table its text happens to contain.

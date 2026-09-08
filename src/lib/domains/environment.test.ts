@@ -109,3 +109,59 @@ test('a compute story that names no compute is held back, and that is the trade'
   expect(matchedKeywords(text, environment.keywords)).toContain('gas turbine');
   expect(gated(text)).toEqual([]);
 });
+
+// --- the French feeds (STU-1292) ---
+
+// Radio-Canada's fils are the first French sources on any domain, and they are
+// general press: the fil environnement covers the whole climate beat and the fil
+// techno covers all of technology. The gate is what makes them safe to add, so
+// these are the cases that prove it points the right way in French.
+test.each([
+  {
+    what: 'a French oil spill quoting a witness',
+    // "j'ai" flattens to the token "ai". Before the acronym rule this passed.
+    text: "Un déversement menace la nappe phréatique. « J'ai vu l'eau noire », dit un résident.",
+  },
+  {
+    what: 'French climate coverage with no compute in it',
+    text: "Les émissions de GES du Québec ont augmenté de 2 % l'an dernier, selon le rapport.",
+  },
+])('$what scores nothing', ({ text }) => {
+  expect(gated(text)).toEqual([]);
+});
+
+test.each([
+  ["L'IA fait exploser la consommation d'eau des centres de données au Québec.", 13],
+  ["Rapport de l'ONU : la demande énergétique de l'IA est largement sous-estimée.", 11],
+  ['Une centrale au charbon rouverte pour alimenter un centre de données.', 11],
+])('a French AI-compute story scores: %s', (text, expected) => {
+  expect(scoreFor(gated(text), environment.keywords)).toBe(expected);
+});
+
+// The fil techno will carry plenty of AI stories with no physical cost in them.
+// Those are on subject and score zero, which is the correct answer, not a miss.
+test('an AI story with no physical quantity in it is on subject and scores zero', () => {
+  const text = "L'IA arrive dans les navigateurs web, annonce l'entreprise.";
+  expect(mentionsSubject(text, environment.subject)).toBe(true);
+  expect(gated(text)).toEqual([]);
+});
+
+// A French feed spells a word unaccented in a headline and accented in the body.
+test('an unaccented spelling matches the accented keyword', () => {
+  expect(gated("L'IA et les centres de donnees font grimper la demande energetique.")).toEqual([
+    'demande énergétique',
+  ]);
+});
+
+// The mirrors carry the same weight as the term they mirror: the same story is
+// the same score whichever language reported it.
+test.each([
+  ['water consumption', "consommation d'eau"],
+  ['energy demand', 'demande énergétique'],
+  ['aquifer', 'nappe phréatique'],
+  ['coal plant', 'centrale au charbon'],
+  ['gas turbine', 'turbine à gaz'],
+  ['carbon footprint', 'empreinte carbone'],
+])('"%s" and "%s" weigh the same', (en, fr) => {
+  expect(environment.keywords[fr]).toBe(environment.keywords[en]!);
+});
