@@ -19,14 +19,29 @@ test('two or more points render an svg with one polyline point per day', () => {
   expect(points).toHaveLength(4);
 });
 
-// No axes, no gridlines, no tooltip chrome — just the line, per the issue's own
-// spec. Asserted as an absence rather than a presence, since the whole point is
-// what this component does *not* add to the page.
-test('carries no axis, gridline or text chrome', () => {
+// A bare polyline with nothing to read it against was tried first, and looked
+// like a floating squiggle rather than a chart — there was no way to tell where
+// in its own range any point sat. Ruled the way the gauge's own dial already is:
+// a hairline top and bottom bounding the range, two hairline ticks marking it
+// into thirds — all in the recessive `--color-hairline` token, never the signal
+// color, so the polyline stays the only thing that reads as data (STU-1290).
+test('is ruled with a top line, a bottom line, and two ticks between them', () => {
+  const markup = renderToStaticMarkup(<TrendSparkline history={[12, 41]} />);
+
+  const lines = markup.match(/<line[^>]*>/g) ?? [];
+  expect(lines).toHaveLength(4);
+  // --color-ash, not --color-hairline: hairline is #1c1c20 against a near-black
+  // background with nothing beside a thin line for contrast to borrow, and
+  // rendered as good as invisible when actually checked (STU-1290).
+  for (const line of lines) expect(line).toContain('var(--color-ash)');
+});
+
+// No axis numbers and no tooltip chrome — the ticks give scale without adding
+// text the small strip has no room for.
+test('carries no text or grouping chrome', () => {
   const markup = renderToStaticMarkup(<TrendSparkline history={[12, 41]} />);
 
   expect(markup).not.toContain('<text');
-  expect(markup).not.toContain('<line ');
   expect(markup).not.toContain('<g ');
 });
 
@@ -40,7 +55,7 @@ test('a genuinely flat history centers in the strip rather than hugging an edge'
   const points = markup.match(/points="([^"]+)"/)?.[1]?.split(' ') ?? [];
   const ys = points.map((p) => Number(p.split(',')[1]));
 
-  const mid = 28 / 2;
+  const mid = 36 / 2;
   for (const y of ys) expect(Math.abs(y - mid)).toBeLessThan(2);
 });
 
@@ -51,8 +66,8 @@ test('the series’ own min and max reach the edges of the strip', () => {
   const points = markup.match(/points="([^"]+)"/)?.[1]?.split(' ') ?? [];
   const ys = points.map((p) => Number(p.split(',')[1]));
 
-  expect(Math.min(...ys)).toBeCloseTo(3, 0); // PAD, the top
-  expect(Math.max(...ys)).toBeCloseTo(25, 0); // HEIGHT - PAD, the bottom
+  expect(Math.min(...ys)).toBeCloseTo(6, 0); // PAD_Y, the top
+  expect(Math.max(...ys)).toBeCloseTo(30, 0); // HEIGHT - PAD_Y, the bottom
 });
 
 test('an extreme outlier still draws within the strip’s own bounds', () => {
@@ -63,7 +78,7 @@ test('an extreme outlier still draws within the strip’s own bounds', () => {
   const ys = points.map((p) => Number(p.split(',')[1]));
   for (const y of ys) {
     expect(y).toBeGreaterThanOrEqual(0);
-    expect(y).toBeLessThanOrEqual(28);
+    expect(y).toBeLessThanOrEqual(36);
   }
 });
 
