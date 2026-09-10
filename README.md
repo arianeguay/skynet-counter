@@ -61,6 +61,38 @@ bun dev              # http://localhost:3000
 `bun dev`, `bun run build` and `bun start` all go through `bun --bun` so the API
 route can import `bun:sqlite`. Running them under Node will fail at that import.
 
+## Look at a page state
+
+The page draws what the database happens to hold, so a state that needs weeks of
+history — or a feed that has been failing for a day and a half — cannot be looked at
+by running the pipeline. `bun run seed` writes a throwaway database holding one:
+
+```bash
+bun run seed                                   # lists the scenarios
+SKYNET_DB=/tmp/seed.db bun run seed dead-feed  # writes it
+SKYNET_DB=/tmp/seed.db bun dev                 # look at it
+```
+
+| Scenario | What the page shows |
+|---|---|
+| `nominal` | an ordinary week, every feed answering |
+| `quiet` | the counter in its bottom band |
+| `critical` | the top band, and a log that is almost all CRIT |
+| `dead-feed` | `/// FEED FAULT`, one source past its day of grace |
+| `flapping` | the same panel's other verdict — a source answering now, failing two sweeps in three |
+| `host-outage` | `/// HOST FAULT`, with no publisher named for it |
+| `balance` | every domain old enough for the balance band, the one you ran it as having an unusual week |
+| `empty` | the log's empty state |
+
+`SKYNET_DOMAIN` picks which domain gets the scenario, the same as it does for a sweep.
+Nothing is fetched and nothing is scored: every row is synthesised from that domain's
+own keyword table, and the counter is then computed from those rows through the same
+call `aggregate` makes, so the gauge and the log are one state rather than two.
+
+It refuses to run against `data/skynet.db` or anything under `/data`, and refuses an
+unset `SKYNET_DB` for the same reason — the history behind a live counter is
+gitignored and exists only on the volume serving it.
+
 ## Routes
 
 | Path | What it serves |

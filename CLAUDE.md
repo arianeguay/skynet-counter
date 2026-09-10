@@ -790,6 +790,39 @@ domain registered under that name would be unreachable over the API while its pa
 rendered fine — the same shadow `next.config.test.ts` guards for retired slugs.
 [The route test](src/app/api/skynet/[domaine]/route.test.ts) holds it.
 
+## Looking at a page state before it ships
+
+[scripts/seed.ts](scripts/seed.ts) writes a throwaway database holding one named
+scenario, so a layout can be looked at without waiting for the live counter to
+be in that state. `/// FEED FAULT` is why it exists: it shipped proven by
+substring assertions on `renderToStaticMarkup` output, which say nothing about
+the amber-on-panel contrast or how the row wraps at 390px, and the panel only
+draws once a source has been failing for over a day (STU-1208). README has the
+scenario table.
+
+It **refuses an unset `SKYNET_DB`**, `data/skynet.db` and anything under `/data`.
+That is not defensiveness: the default path *is* the live one, and the history
+behind a published counter is gitignored, never backed up and exists only on the
+volume serving it.
+
+Nothing here is fetched or scored. Every row is synthesised from the domain's own
+keyword table, its own subject list and its own feed file, so a table that changes
+carries the fixtures with it and a domain added later needs no edit here. Three
+things follow from that and are worth not rediscovering:
+
+- **The counter is computed, never asserted.** It goes through `scoredHistory` and
+  `normalizedSignal` — the call `aggregate` makes — so the gauge and the log are
+  one state. A fixture that wrote a chosen number would draw a gauge its own
+  article log does not explain, which is the class of bug it exists to expose.
+- **A day's score budget is spent a row at a time and carried across days.** A
+  domain whose cheapest keyword outweighs what it publishes in a day cannot spend
+  its budget on the day it earns it; resetting the remainder read as whole weeks
+  scoring nothing on `smarthome`, whose table starts at 10 and whose divisor is 4.
+- **It seeds `TREND_WINDOW_DAYS + HORIZON_DAYS` back, on `scored_at`.** Less than
+  that and the sparkline's early points see a horizon missing its own tail, and
+  the balance band's maturity gate holds the domain back — the flat-run-then-jump
+  artifact STU-1283 found on the live site, reproduced in a fixture.
+
 ## Where a Task Runs
 
 An issue is `claude:web` when it can be **both changed and verified** in a Claude Code
@@ -806,6 +839,10 @@ proof, not the edit.
   `SKYNET_DB=/tmp/x.db`
 - feed parsing (`.studio/scripts/rss.ts`) against saved XML
 - the Next.js page, the components and `/api/skynet`
+- the fixture seeder (`scripts/seed.ts`) — it writes a scratch file and every
+  scenario is read back through `readSnapshot`, so what each one puts on the page is
+  provable without a sweep. Whether the layout it produces *looks* right is the one
+  thing no test settles, and looking at it is the whole reason it exists
 - the desktop widget — `tests/widgets/` renders it with `renderToStaticMarkup` and
   asserts on the markup, so the bands, the needle geometry and the failure paths are
   provable without a Mac or Übersicht anywhere near it
