@@ -102,6 +102,8 @@ gitignored and exists only on the volume serving it.
 | `/ecologie` | permanent redirect to `/environment`, the slug it was renamed from |
 | `/api/skynet` | the default domain's full snapshot as JSON |
 | `/api/skynet/summary` | the default domain's counter, timestamp and band, for the desktop widget |
+| `/api/skynet/<domain>` | that domain's full snapshot — the same shape, for any registered slug |
+| `/api/skynet/<domain>/summary` | that domain's counter, timestamp and band |
 
 The domain switcher above the gauge is built from the registry in
 `src/lib/domains/`, so it appears once a second domain exists and lists exactly the
@@ -335,8 +337,16 @@ For a caller that draws the number and nothing else. `/api/skynet` reads 40 arti
 and parses each one's keyword JSON to answer, which is a lot of wire for a widget
 polling on a timer. `status` is the band the site prints — served rather than
 computed by the caller, so a second surface cannot drift from the thresholds in
-`counter.ts`. This is the only route that sets `access-control-allow-origin`, because
-a desktop widget fetches from a `file://` document.
+`counter.ts`. Both summary routes set `access-control-allow-origin`, because a
+desktop widget fetches from a `file://` document and sends `Origin: null`.
+
+`GET /api/skynet/<domain>` and `GET /api/skynet/<domain>/summary` serve those two
+payloads for any slug the registry defines — `/api/skynet/environment`,
+`/api/skynet/smarthome/summary`. The two paths above stay pinned to the default
+domain so a bookmark or a widget config does not break; an unregistered slug is a
+404 rather than an empty snapshot, because a counter of 0 with no articles is what a
+quiet week looks like and a domain that does not exist must not be able to publish
+one.
 
 ## Desktop widget
 
