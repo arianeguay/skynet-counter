@@ -1,29 +1,12 @@
-import { statusLine } from '@/lib/counter';
-import { readCounter } from '@/lib/db';
-import { DEFAULT_DOMAIN, domainBySlug } from '@/lib/domains';
+import { DEFAULT_DOMAIN } from '@/lib/domains';
+import { summaryResponse } from '../responses';
 
 export const dynamic = 'force-dynamic';
 
-// What a desktop widget needs and nothing else. Two differences from the
-// sibling route, both of them for that caller:
-//
-//   - `status` is served rather than computed client-side, so a widget never
-//     carries its own copy of the bands in `counter.ts`.
-//   - `access-control-allow-origin`, because an Übersicht widget runs its fetch
-//     from a `file://` document and sends `Origin: null`. The payload is the
-//     same public number the site already renders to anyone.
+// The desktop widget's endpoint, and the reason `summary` is a slug no domain
+// may take: a static segment wins over a dynamic sibling in Next's router, so a
+// domain registered under that name would be shadowed here rather than served
+// by `/api/skynet/<slug>`. `route.test.ts` holds that.
 export function GET() {
-  const { counter, updatedAt } = readCounter(DEFAULT_DOMAIN);
-  // The band is the domain's, not the risk one: a widget showing STALLED for a
-  // progress counter reading 8 is right, and NOMINAL would be nonsense.
-  const polarity = domainBySlug(DEFAULT_DOMAIN)?.polarity ?? 'risk';
-  return Response.json(
-    { counter, updatedAt, status: statusLine(counter, polarity) },
-    {
-      headers: {
-        'cache-control': 'no-store',
-        'access-control-allow-origin': '*',
-      },
-    }
-  );
+  return summaryResponse(DEFAULT_DOMAIN);
 }

@@ -755,11 +755,25 @@ than a wrong number. Thresholds and scores are not fine, which is why
 `statusLine` lives in [counter.ts](src/lib/counter.ts) rather than in `CounterHero`
 so a server route can reach it, since that component is `'use client'`.
 
-`/api/skynet/summary` is the only route that sets `access-control-allow-origin`: a
-widget fetches from a `file://` document and sends `Origin: null`. It exists at all
+The summary routes are the ones that set `access-control-allow-origin`: a widget
+fetches from a `file://` document and sends `Origin: null`. They exist at all
 because `readSnapshot()` reads 40 articles and parses each one's keyword JSON, which
 is the wrong shape for a caller polling on a timer for one number — hence
 `readCounter()` beside it in [db.ts](src/lib/db.ts).
+
+Every domain is reachable over HTTP, not only the default one (STU-1276):
+`/api/skynet/<slug>` and `/api/skynet/<slug>/summary` take a slug, while
+`/api/skynet` and `/api/skynet/summary` stay pinned to `DEFAULT_DOMAIN` because a
+widget config and a bookmark point at them. All four are two payloads, written once
+in [responses.ts](src/app/api/skynet/responses.ts) — a second copy of the summary
+shape is a second place for the widget's contract to drift, which is the thing
+serving `status` exists to prevent.
+
+**`summary` is a slug no domain may take.** A static segment beats a dynamic sibling
+in Next's router, so `/api/skynet/summary` resolves to the widget's route and a
+domain registered under that name would be unreachable over the API while its page
+rendered fine — the same shadow `next.config.test.ts` guards for retired slugs.
+[The route test](src/app/api/skynet/[domaine]/route.test.ts) holds it.
 
 ## Where a Task Runs
 
