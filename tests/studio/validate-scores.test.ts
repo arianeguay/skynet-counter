@@ -81,7 +81,7 @@ test('a partial omission is reported in the summary but still approved', async (
     {
       url: ARTICLES[1]!.url,
       score: 13,
-      matched_keywords: ['active exploitation', 'vulnerability'],
+      matched_keywords: ['active exploitation', 'vulnerabilit'],
       evidence: 'under active exploitation',
     },
   ]);
@@ -101,7 +101,7 @@ test('a fully claimed batch reports no omissions', async () => {
     {
       url: ARTICLES[1]!.url,
       score: 13,
-      matched_keywords: ['active exploitation', 'vulnerability'],
+      matched_keywords: ['active exploitation', 'vulnerabilit'],
       evidence: 'under active exploitation',
     },
   ]);
@@ -217,7 +217,7 @@ test('a partial batch that declares its one drop reports no unclaimed keyword', 
     {
       url: ARTICLES[1]!.url,
       score: 13,
-      matched_keywords: ['active exploitation', 'vulnerability'],
+      matched_keywords: ['active exploitation', 'vulnerabilit'],
       evidence: 'under active exploitation',
     },
   ]);

@@ -29,7 +29,7 @@ test.each([
   {
     what: 'a vulnerability that was silently mitigated was still a vulnerability',
     text: 'Microsoft Copilot reveals secret input that allowed it to be hacked. Microsoft silently mitigated the vulnerability.',
-    keywords: ['vulnerability'] as string[],
+    keywords: ['vulnerabilit'] as string[],
   },
   {
     what: 'refusing to pay a ransom is still a ransomware story',
@@ -39,24 +39,24 @@ test.each([
   {
     what: 'a patch round-up is still a report of the holes it closes',
     text: 'Microsoft Plugs Nearly 400 Security Holes. Readers turned from the recent patch deluge to vulnerability counts.',
-    keywords: ['vulnerability'] as string[],
+    keywords: ['vulnerabilit'] as string[],
   },
   {
     what: 'a record patch count is a record flaw count',
     text: 'Microsoft Patches a Record 570 Security Flaws, drawing the burgeoning patch counts to vulnerability tallies.',
-    keywords: ['vulnerability'] as string[],
+    keywords: ['vulnerabilit'] as string[],
   },
   {
     what: 'an agent exploiting a flaw is the story, not the patch that followed',
     text: 'The Rise and Fall of Agent Civilizations: agents found the exploit, so OpenAI patched this vulnerability.',
-    keywords: ['vulnerability'] as string[],
+    keywords: ['vulnerabilit'] as string[],
   },
   {
     what: 'a chained exploit is not undone by the hardening that followed',
     // The measured phrasing, word for word: "fix" sits exactly five words before the
     // keyword, which is the edge of the window.
     text: 'Attackers chain two PaperCut flaws to execute code without authentication. The vendor shipped a fix with additional hardening this vulnerability.',
-    keywords: ['vulnerability'] as string[],
+    keywords: ['vulnerabilit'] as string[],
   },
 ])('$what still scores', ({ text, keywords }) => {
   // Flagged, because the words really are adjacent — and kept, because the flag is
