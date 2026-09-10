@@ -613,8 +613,23 @@ and its measurement, and Polarity above for the mechanism that let it ship.
 
 Each domain's table lives in its own module and the matcher in
 [src/lib/keywords.ts](src/lib/keywords.ts) is handed one rather than importing a
-global. The matcher flattens punctuation and matches on substring, so inflections and
-hyphen variants land on the same keyword.
+global. The matcher flattens punctuation and matches on substring, so hyphen variants
+and any inflection that only *adds* to the word land on the same keyword: `breaches`
+finds `breach`, `zero-days` finds `zero-day`, `exfiltrated` finds `exfiltrate`.
+
+An inflection that **changes the stem does not** — `vulnerabilities` does not contain
+`vulnerability`, and that plural is the form security headlines use; three articles in
+the 2026-09-01 corpus lost 15 points to it, one scoring 0 instead of 5 (STU-1223).
+Where a keyword inflects that way its entry carries the stem, the way `misalign` and
+`vulnerabilit` do, rather than a second entry for the plural — two entries for one word
+pay twice on an article using both forms, which is what the no-keyword-is-a-substring-
+of-another rule exists to stop. This is one demonstrated miss, not a licence to stem the
+table: `autonomous` measured three false positives out of three, which is why the entry
+is `autonomous agent`.
+
+Word order is literal too, and deliberately left that way: `credentials leaked` does not
+match "leaked credentials". That is a different mechanism from stemming and it produced
+no miss in the corpus.
 
 The scorer's prompt used to carry a **hand-maintained second copy** of the table. It
 does not any more, and must not grow one back: the prompt is one static file shared by

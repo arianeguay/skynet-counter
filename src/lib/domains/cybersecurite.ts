@@ -38,7 +38,17 @@ export const cybersecurite: Domain = {
     'autonomous agent': 6,
     ransomware: 6,
     breach: 5,
-    vulnerability: 5,
+    // The stem, not the noun, for the same reason `misalign` and `exfiltrate`
+    // are stems: the matcher scans by substring, so it reaches an inflection
+    // that only adds to the word ("breaches", "zero-days") and not one that
+    // changes it — "vulnerabilities" does not contain "vulnerability", and the
+    // plural is the form security headlines actually use. Three articles in the
+    // 2026-09-01 corpus missed it, 15 points of score, one of them scoring 0
+    // instead of 5 (STU-1223). One stemmed entry rather than a second entry for
+    // the plural: two entries for one word pay twice on an article using both
+    // forms, which is what the no-keyword-is-a-substring-of-another rule exists
+    // to prevent.
+    vulnerabilit: 5,
     agentic: 4,
     'account takeover': 4,
   },

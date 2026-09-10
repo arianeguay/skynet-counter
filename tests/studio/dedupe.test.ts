@@ -195,7 +195,7 @@ test(
     expect(out.stranded_count).toBe(1);
     expect(out.new_count).toBe(1);
     expect(out.articles).toEqual([
-      { ...ARTICLE, candidate_keywords: ['active exploitation', 'vulnerability'] },
+      { ...ARTICLE, candidate_keywords: ['active exploitation', 'vulnerabilit'] },
     ]);
   })
 );
@@ -278,7 +278,7 @@ test(
     ]);
 
     expect(out.articles.map((a) => a.candidate_keywords)).toEqual([
-      ['active exploitation', 'vulnerability'],
+      ['active exploitation', 'vulnerabilit'],
       ['self-improving'],
     ]);
   })

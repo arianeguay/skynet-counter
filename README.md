@@ -364,7 +364,7 @@ neither derives from the other.
 | remote code execution | 10 | | autonomous agent | 6 |
 | supply-chain attack | 10 | | ransomware | 6 |
 | deceptive | 10 | | breach | 5 |
-| reward hacking | 10 | | vulnerability | 5 |
+| reward hacking | 10 | | vulnerabilit | 5 |
 | privilege escalation | 9 | | agentic | 4 |
 | prompt injection | 9 | | account takeover | 4 |
 

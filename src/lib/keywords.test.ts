@@ -23,7 +23,7 @@ const CORPUS = [
   {
     title: 'Vulnerability giving attackers full control of Macs is under active exploitation',
     summary: 'Screen-sharing bug lets remote hackers log in without a password.',
-    expected: ['active exploitation', 'vulnerability'],
+    expected: ['active exploitation', 'vulnerabilit'],
   },
   {
     title: 'An Anthropic researcher just gave us a peek at self-improving AI',
@@ -43,6 +43,26 @@ test('punctuation and inflection do not break a match', () => {
   expect(matched('a supply chain attack')).toEqual(['supply-chain attack']);
   expect(matched('Grok exfiltrates user data')).toEqual(['exfiltrate']);
   expect(matched('protection against account takeovers')).toEqual(['account takeover']);
+});
+
+// Substring matching reaches an inflection that only adds to the word, and not
+// one that changes it: "vulnerabilities" does not contain "vulnerability", and
+// the plural is the form security headlines use. Three articles in the
+// 2026-09-01 corpus lost 15 points to that, so the table carries the stem
+// (STU-1223).
+test('a plural that changes the stem scores the same as the singular', () => {
+  expect(matched('Two vulnerabilities found')).toEqual(['vulnerabilit']);
+  expect(matched('A vulnerability found')).toEqual(['vulnerabilit']);
+  expect(scoreFor(matched('Two vulnerabilities found'), KEYWORD_WEIGHTS)).toBe(
+    scoreFor(matched('A vulnerability found'), KEYWORD_WEIGHTS)
+  );
+});
+
+// One entry, not one per form: an article using both would collect the stem
+// once, where a `vulnerability` + `vulnerabilities` pair would pay 5 twice for
+// the same word.
+test('an article using both forms is still scored once', () => {
+  expect(matched('A vulnerability found; two more vulnerabilities followed')).toEqual(['vulnerabilit']);
 });
 
 test('an unrelated article still scores zero', () => {
