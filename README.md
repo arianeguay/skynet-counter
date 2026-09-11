@@ -83,6 +83,7 @@ SKYNET_DB=/tmp/seed.db bun dev                 # look at it
 | `host-outage` | `/// HOST FAULT`, with no publisher named for it |
 | `balance` | every domain old enough for the balance band, the one you ran it as having an unusual week |
 | `empty` | the log's empty state |
+| `aiid` | a rising multi-year trend on `/aiid`, with recent months held back |
 
 `SKYNET_DOMAIN` picks which domain gets the scenario, the same as it does for a sweep.
 Nothing is fetched and nothing is scored: every row is synthesised from that domain's
@@ -100,6 +101,7 @@ gitignored and exists only on the volume serving it.
 | `/` | redirect to the default domain |
 | `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite`, `/environment`, `/ai-business`, `/frontend`, `/smarthome` |
 | `/ecologie` | permanent redirect to `/environment`, the slug it was renamed from |
+| `/aiid` | reported AI incidents per year, in absolute terms, not a gauge |
 | `/api/skynet` | the default domain's full snapshot as JSON |
 | `/api/skynet/summary` | the default domain's counter, timestamp and band, for the desktop widget |
 | `/api/skynet/<domain>` | that domain's full snapshot — the same shape, for any registered slug |
@@ -170,6 +172,32 @@ at the live divisor and prints `DIVISOR /n SATURATED` under the gauge when an or
 week no longer leaves room for one half again as busy — the failure that pegged
 cybersecurity at 94.6 the day three feeds were added to it. It only ever complains in
 that direction: a domain reading near the floor is a quiet beat, not a bad constant.
+
+## AIID trend page
+
+`/aiid` is not a gauge: no divisor, no keyword scoring, no 0-100 range. It plots the
+[AI Incident Database](https://incidentdatabase.ai)'s yearly count of reported AI
+incidents as a bar per year, unfiltered by tag or category. The five gauges are
+relative-anomaly detectors, calibrated against their own recent history; this page
+exists because a genuine multi-year trend does not show up on any of them, however
+loud it gets.
+
+Two ingestion mechanisms, both outside the hourly feed pattern:
+
+- **Backfill (one-time):** `make backfill-aiid` downloads AIID's latest full-export
+  snapshot and loads every incident's own date into `aiid_incidents`. Rerun it any
+  time; it upserts on AIID's own `incident_id`, so a rerun refreshes rather than
+  duplicates.
+- **Sync (ongoing):** `docker/run-loop.sh` runs `scripts/aiid-sync.ts` on its own
+  schedule (`AIID_SYNC_INTERVAL`, default weekly), reading AIID's public RSS feed
+  and adding only incidents not already known. AIID's GraphQL API is origin-gated,
+  so the RSS feed is the only reachable source for new incidents; a newly
+  discovered incident is dated by the report that surfaced it, not AIID's own
+  incident date, since that field is unreachable without the gated API.
+
+The trailing ~6 months are always excluded from the chart. AIID backfills past
+years continuously as reports come in, so the current window reads artificially
+low while that backfill is ongoing, not because incidents actually slowed down.
 
 ## Scheduling
 
