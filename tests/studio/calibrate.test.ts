@@ -43,13 +43,13 @@ test('the grid reproduces the counter the formula would publish', async () => {
   ];
   const { code, out } = await calibrate(dbWith(rows));
   expect(code).toBe(0);
-  // 20 at age 0 plus 10 at one half-life = 20 + 5 = 25 signal, so BASE + 25/32.
+  // 20 at age 0 plus 10 at one half-life = 20 + 5 = 25 signal, so BASE + 25/64.
   const expected = counterFrom(
     decayedSignal(rows.map((r) => ({ ...r, score: r.score })), Date.now()),
     BASE,
     cybersecurite.divisor
   );
-  expect(expected).toBeCloseTo(12.8, 1);
+  expect(expected).toBeCloseTo(12.4, 1);
   expect(out).toContain(expected.toFixed(1));
   expect(out).toContain('2 scored articles');
 });

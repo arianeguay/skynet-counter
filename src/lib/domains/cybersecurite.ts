@@ -13,9 +13,23 @@ export const cybersecurite: Domain = {
   // 70 on a doubled one, and still stops short of 100 on a tripled one. The
   // previous /8 was guessed while every article scored 0; it pegs the gauge at 100
   // on an ordinary week and never comes back down (STU-1171).
+  //
+  // Bumped to 64, provisional, on 2026-09-11: BleepingComputer, The Record and
+  // Dark Reading were added to the feed list and pushed measured output to 232
+  // points of score a day, 2.4x the corpus this divisor was picked from — the
+  // live site read 94.6% within a day (steady signal ~2220, which /32 reads at
+  // 81.4). BleepingComputer and The Record each have only a 1-day RSS window so
+  // far, the same position `environment`'s subject list and Radio-Canada's fils
+  // shipped unmeasured from (STU-1291, STU-1292): a real per-feed rate for them
+  // does not exist yet to calibrate against. /64 keeps the gauge legible in the
+  // meantime rather than pinned at the ceiling for two weeks, which is the worse
+  // failure regardless of what the eventual real divisor turns out to be.
+  // Re-run `bun run calibrate` once BleepingComputer and The Record reach a
+  // window comparable to Dark Reading's (13.2 days measured 2026-09-11), and
+  // replace this with a real number.
   polarity: 'risk',
   question: { prefix: 'How close are we to', subject: 'The Singularity' },
-  divisor: 32,
+  divisor: 64,
   keywords: {
     'loss of control': 15,
     'self-replicating': 15,

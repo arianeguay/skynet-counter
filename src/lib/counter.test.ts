@@ -54,8 +54,8 @@ test('an empty history leaves the counter at BASE', () => {
 });
 
 test('the counter is BASE plus the signal over DIVISOR, to one decimal', () => {
-  expect(counterAt(80)).toBe(BASE + 80 / DIVISOR);
-  expect(counterAt(5)).toBe(12.2);
+  expect(counterAt(80)).toBe(13.3);
+  expect(counterAt(5)).toBe(12.1);
 });
 
 // Enough simultaneous risk must peg the gauge rather than run off the end of it.
@@ -63,9 +63,15 @@ test('the counter saturates at 100', () => {
   expect(counterAt(100_000)).toBe(100);
 });
 
-// The measured rate the constants were calibrated against on 2026-09-01: the
-// five feeds publish this much score a day between them.
-const MEASURED_DAILY_SCORE = 97.2;
+// What the feed list measured on 2026-09-11, after BleepingComputer, The Record
+// and Dark Reading were added — 232 points of score a day, 2.4x the ~97/day the
+// three-feed set this domain shipped with on 2026-09-01 measured. DIVISOR was
+// bumped to 64 the same day, provisional: two of the three new feeds have only
+// a 1-day RSS window, so there is no real per-feed rate yet to pick a
+// properly-headroomed divisor from (see cybersecurite.ts). The pre-bump test
+// this superseded asserted headroom on a since-obsolete rate; kept here instead
+// of alongside a stale one.
+const PROVISIONAL_DAILY_SCORE = 232;
 
 test('a steady feed settles at its daily score times the area under the decay', () => {
   // Articles arrive through the day, so the closed form integrates the decay
@@ -76,22 +82,25 @@ test('a steady feed settles at its daily score times the area under the decay', 
   expect(steadySignal(100)).toBeCloseTo(area, -1);
 });
 
-// DIVISOR exists to make the gauge usable across the range the feeds actually
-// produce. These are the four points it was picked on (STU-1171); a smaller one
-// pegs the gauge on an ordinary week and it never comes back down.
-test('the calibrated divisor keeps silence, an ordinary week and a crisis on the gauge', () => {
-  const steady = steadySignal(MEASURED_DAILY_SCORE);
-  expect(counterAt(0)).toBe(BASE);
-  expect(counterAt(0.4 * steady)).toBeLessThan(30);
+// The trade the provisional bump makes: at the feed set's actual measured
+// rate, an ordinary week is still legible, but a tripled week pegs the gauge
+// instead of leaving room above it. Accepted deliberately
+// on 2026-09-11 — a divisor small enough to hold headroom on an unmeasured
+// guess would have pinned the gauge near 100% for two weeks on an ordinary
+// one, which is the worse failure of the two.
+test('the provisional divisor holds an ordinary week but saturates a tripled one', () => {
+  const steady = steadySignal(PROVISIONAL_DAILY_SCORE);
   expect(counterAt(steady)).toBeGreaterThan(35);
   expect(counterAt(steady)).toBeLessThan(55);
-  expect(counterAt(3 * steady)).toBeLessThan(100);
+  expect(counterAt(3 * steady)).toBe(100);
 });
 
-// `days` of history at MEASURED_DAILY_SCORE points a day, arriving hourly and
+// `days` of history at PROVISIONAL_DAILY_SCORE points a day, arriving hourly and
 // split across two sources. The oldest row lands exactly `days` back, so the
-// observation window the normalisation reads is the depth being tested.
-const corpusOf = (days: number, dailyScore = MEASURED_DAILY_SCORE): Sourced[] => {
+// observation window the normalisation reads is the depth being tested. The
+// specific rate is arbitrary here — these tests are about the shape of the
+// normalisation, not about calibration.
+const corpusOf = (days: number, dailyScore = PROVISIONAL_DAILY_SCORE): Sourced[] => {
   const rows: Sourced[] = [];
   const perArticle = dailyScore / 24 / 2;
   for (let hour = 0; hour < days * 24; hour++) {
