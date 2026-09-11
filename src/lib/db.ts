@@ -4,6 +4,7 @@ import { DOMAINS, domainBySlug, type Domain } from './domains';
 import { normalizedDeviation, type DomainDeviation } from './balance';
 import { divisorSaturation, type DivisorSaturation } from './calibration';
 import { mentionsSubject } from './keywords';
+import { yearlyIncidentCounts, type YearCount } from './aiid';
 
 // Read per call, not once at module load: capturing it at import time meant
 // whichever test file pulled this module in first decided the path for the whole
@@ -255,6 +256,17 @@ export function openDb(): Database {
       first_at TEXT NOT NULL,
       last_at  TEXT NOT NULL,
       PRIMARY KEY (domain, url)
+    );
+    -- Not domain-partitioned: this is the AIID trend page's own table, one
+    -- instance of it total, not one per domain. incident_id is AIID's own,
+    -- which is what makes ON CONFLICT idempotent across backfill reruns and
+    -- what stops the RSS sync from double-counting a second report on the
+    -- same incident.
+    CREATE TABLE IF NOT EXISTS aiid_incidents (
+      incident_id INTEGER PRIMARY KEY,
+      date        TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      ingested_at TEXT NOT NULL
     );
   `);
   migrateToDomains(db);
@@ -561,6 +573,33 @@ export function readDivisorSaturation(domain: Domain): DivisorSaturation | null 
     const now = Date.now();
     const since = new Date(now - HORIZON_DAYS * 864e5).toISOString();
     return divisorSaturation(scoredHistory(db, domain, since), now, domain.divisor);
+  } finally {
+    db.close();
+  }
+}
+
+// The AIID trend page's whole read: every stored incident's date, bucketed by
+// year with the trailing holdback already applied. Computed on read rather
+// than stored as a yearly snapshot, the same reason `counterHistory` recomputes
+// instead of storing a daily one — a correction to the holdback window, or a
+// backfill rerun that changes a date, corrects every past reading at once.
+export function readAiidYearCounts(now = Date.now()): YearCount[] {
+  const db = openDb();
+  try {
+    const rows = db.query<{ date: string }, []>('SELECT date FROM aiid_incidents').all();
+    return yearlyIncidentCounts(rows, now);
+  } finally {
+    db.close();
+  }
+}
+
+// When the page's data last changed — the newer of the one-time backfill and
+// the most recent RSS sync, since either can add rows.
+export function readAiidUpdatedAt(): string | null {
+  const db = openDb();
+  try {
+    const row = db.query<{ latest: string | null }, []>('SELECT MAX(ingested_at) AS latest FROM aiid_incidents').get();
+    return row?.latest ?? null;
   } finally {
     db.close();
   }
