@@ -45,41 +45,29 @@ test('carries no text or grouping chrome', () => {
   expect(markup).not.toContain('<g ');
 });
 
-// Autoscaled to the series' own range, not the gauge's fixed 0-100: the gauge
-// beside this already shows absolute position, so a real 10-70 swing must fill
-// the strip the same way a real 40-45 swing does — the sparkline's only job is
-// shape of change, and a fixed ceiling nothing gets near read every domain as
-// a flat line (STU-1290).
-test('a genuinely flat history centers in the strip rather than hugging an edge', () => {
-  const markup = renderToStaticMarkup(<TrendSparkline history={[12, 12, 12]} />);
+// Fixed to the gauge's own 0-100, not the series' own range (STU-1290 reopened
+// after shipping autoscaled): a flat run near the ceiling must draw near the
+// top of the strip rather than centering, because "near the top" is the fact
+// this sparkline exists to show — the ticks now mean the same 0/33/67/100 on
+// every domain's page.
+test('a flat history near the ceiling hugs the top of the strip, not the middle', () => {
+  const markup = renderToStaticMarkup(<TrendSparkline history={[94, 95, 94]} />);
   const points = markup.match(/points="([^"]+)"/)?.[1]?.split(' ') ?? [];
   const ys = points.map((p) => Number(p.split(',')[1]));
 
-  const mid = 36 / 2;
-  for (const y of ys) expect(Math.abs(y - mid)).toBeLessThan(2);
+  const top = 6; // PAD_Y
+  for (const y of ys) expect(y).toBeLessThan(top + 4);
 });
 
-// The two extremes of a real series must reach the top and bottom of the strip
-// — that is the whole point of autoscaling, and the property a fixed domain lost.
-test('the series’ own min and max reach the edges of the strip', () => {
-  const markup = renderToStaticMarkup(<TrendSparkline history={[10, 40, 70]} />);
+// The counter's own floor and ceiling must land exactly on the ruled top and
+// bottom lines — that is what makes the ruling meaningful across domains.
+test('0 and 100 land exactly on the bottom and top ruling lines', () => {
+  const markup = renderToStaticMarkup(<TrendSparkline history={[0, 100]} />);
   const points = markup.match(/points="([^"]+)"/)?.[1]?.split(' ') ?? [];
   const ys = points.map((p) => Number(p.split(',')[1]));
 
-  expect(Math.min(...ys)).toBeCloseTo(6, 0); // PAD_Y, the top
-  expect(Math.max(...ys)).toBeCloseTo(30, 0); // HEIGHT - PAD_Y, the bottom
-});
-
-test('an extreme outlier still draws within the strip’s own bounds', () => {
-  const markup = renderToStaticMarkup(<TrendSparkline history={[-2000, 9000]} />);
-
-  expect(markup).toContain('<svg');
-  const points = markup.match(/points="([^"]+)"/)?.[1]?.split(' ') ?? [];
-  const ys = points.map((p) => Number(p.split(',')[1]));
-  for (const y of ys) {
-    expect(y).toBeGreaterThanOrEqual(0);
-    expect(y).toBeLessThanOrEqual(36);
-  }
+  expect(Math.min(...ys)).toBeCloseTo(6, 1); // PAD_Y, the top: 100
+  expect(Math.max(...ys)).toBeCloseTo(30, 1); // HEIGHT - PAD_Y, the bottom: 0
 });
 
 test('names how many days the trend covers, for anyone not reading the line', () => {

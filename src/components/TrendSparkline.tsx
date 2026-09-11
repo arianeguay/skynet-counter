@@ -3,43 +3,38 @@ const HEIGHT = 36;
 const PAD_X = 4;
 const PAD_Y = 6;
 
-// Below this many points of real spread, expand symmetrically around the series'
-// own min/max rather than drawing whatever tiny real variance exists edge-to-edge
-// — a difference of 0.3 should not fill the strip the same way a difference of 40
-// does, and a genuinely flat run should center rather than hug an edge.
-const MIN_SPAN = 4;
-
-// The trend's own range, not the gauge's 0-100: the gauge right next to this
-// already shows absolute position, so the sparkline's only job is shape of
-// change. A fixed 0-100 domain was tried first and made every real domain read
-// as a flat line — cybersecurite's actual 10-70 point swing occupies barely a
-// third of the strip when squeezed against a ceiling nothing here gets near
-// (STU-1290).
+// The gauge's own 0-100, not the series' own min/max. Autoscaling was tried
+// first (STU-1290) so a real swing always filled the strip, but that means the
+// ruling lines below carry no fixed meaning — the top line is "today's max",
+// not "100", and reading two domains' sparklines side by side tells you
+// nothing about which is louder in absolute terms, only which moved more
+// relative to itself. A fixed domain gives up that per-domain resolution
+// deliberately: a domain hugging 88-96 draws a near-flat line near the top
+// of the strip, but "near the top" is itself the information — the previous
+// version could not draw that at all, because it stretched the same 8-point
+// wobble to fill the whole strip on every domain, flat or not.
 function pointsFor(history: number[]): [number, number][] {
-  const min = Math.min(...history);
-  const max = Math.max(...history);
-  const pad = Math.max(0, MIN_SPAN - (max - min)) / 2;
-  const effMin = min - pad;
-  const span = max - min + pad * 2;
-
   const dx = history.length > 1 ? (WIDTH - PAD_X * 2) / (history.length - 1) : 0;
   return history.map((v, i) => {
     const x = PAD_X + i * dx;
-    const y = PAD_Y + (1 - (v - effMin) / span) * (HEIGHT - PAD_Y * 2);
+    const y = PAD_Y + (1 - v / 100) * (HEIGHT - PAD_Y * 2);
     return [x, y];
   });
 }
 
-// The daily trend under a domain's gauge, ruled with a top and bottom bounding
-// the range and two ticks marking it into thirds — the frame in `--color-ash`,
-// the muted text token this page already draws labels and timestamps in, not
+// The daily trend under a domain's gauge, ruled with a top and bottom at 100
+// and 0 and two ticks marking 67 and 33 — the frame in `--color-ash`, the
+// muted text token this page already draws labels and timestamps in, not
 // `--color-hairline`. Hairline is #1c1c20 against a near-black background with
 // nothing beside it for contrast; the gauge's own dial gets away with that color
 // only because its track is a 14px arc, not a 1px line alone in a small strip —
 // checked directly, hairline strokes here rendered as good as invisible. A bare
 // polyline with nothing to read it against was tried first too, and looked like
-// noise rather than a chart — there was no way to tell where in its own range
-// any point sat (STU-1290).
+// noise rather than a chart — there was no way to tell where in the gauge's own
+// 0-100 any point sat (STU-1290). Fixing the domain (see `pointsFor`) means
+// these four lines now carry the same meaning on every domain's page, unlike
+// the autoscaled version where the top line was whatever that domain's own
+// maximum happened to be that day.
 //
 // `history` is already clipped by `readCounterTrend` to how long the domain has
 // actually been swept, so this never has to guess whether a flat run at the left
