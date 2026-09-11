@@ -19,24 +19,13 @@
 // so it never surfaces as a number the chart claims is exact.
 import { openDb } from '@/lib/db';
 import { extractCiteIncidentId } from '@/lib/aiid';
-import { USER_AGENT } from '../.studio/scripts/rss';
+import { USER_AGENT, decode } from '../.studio/scripts/rss';
 
 const RSS_URL = 'https://incidentdatabase.ai/rss.xml';
 
 function die(message: string): never {
   console.error(`aiid-sync: ${message}`);
   process.exit(1);
-}
-
-function decode(raw: string): string {
-  return raw
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-    .trim();
 }
 
 function tag(block: string, name: string): string {
