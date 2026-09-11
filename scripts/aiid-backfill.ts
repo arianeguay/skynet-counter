@@ -30,8 +30,14 @@ async function latestSnapshotUrl(): Promise<string> {
   const html = await res.text();
 
   // Timestamps are `YYYYMMDDHHMMSS`, which sorts correctly as a plain string,
-  // so no date parsing is needed to find the newest one.
-  const urls = [...html.matchAll(/https:\/\/[^"]+backup-\d{14}\.tar\.bz2/g)].map((m) => m[0]);
+  // so no date parsing is needed to find the newest one. Anchored inside a
+  // quoted attribute value (`"https://...backup-...tar.bz2"`) rather than a
+  // bare `[^"]+` before the literal: without that boundary the match can run
+  // unbounded across a large quote-sparse stretch of the page (an inline
+  // script blob, say) and backtrack character by character looking for the
+  // literal, which is quadratic over the page size and burned minutes of CPU
+  // on the real page before this was caught.
+  const urls = [...html.matchAll(/"(https:\/\/[^"]*backup-\d{14}\.tar\.bz2)"/g)].map((m) => m[1]!);
   if (urls.length === 0) die('found no backup-*.tar.bz2 link on the snapshots page, page format may have changed');
   return urls.sort().at(-1)!;
 }
@@ -39,7 +45,11 @@ async function latestSnapshotUrl(): Promise<string> {
 async function downloadTo(url: string, path: string): Promise<void> {
   const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } });
   if (!res.ok) die(`${url} responded ${res.status}`);
-  await Bun.write(path, res);
+  // Not `Bun.write(path, res)`: handing it the Response directly hung
+  // indefinitely against the real archive on this Bun version (1.3.14),
+  // burning CPU with nothing ever written to disk. Buffering the body first
+  // writes the same 111 MB file in under 4 seconds.
+  await Bun.write(path, await res.arrayBuffer());
 }
 
 // Extracts just the one CSV from the archive rather than unpacking the whole
