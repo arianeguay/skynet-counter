@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { DivisorSaturation } from '@/lib/calibration';
 import { statusLine, type Polarity } from '@/lib/counter';
 import { Gauge } from './Gauge';
 import { GlitchNumber } from './GlitchNumber';
@@ -15,6 +16,7 @@ export function CounterHero({
   polarity,
   question,
   history,
+  saturation = null,
 }: {
   counter: number;
   updatedAt: string;
@@ -24,6 +26,10 @@ export function CounterHero({
   polarity: Polarity;
   question: { prefix: string; subject: string };
   history: number[];
+  // Non-null when this domain's feeds have outgrown the divisor they are divided
+  // by. It prints beside the sweep stamp rather than in `FeedAlert`: nothing is
+  // failing, the gauge is just no longer able to say anything (STU-1401).
+  saturation?: DivisorSaturation | null;
 }) {
   const hero = useRef<HTMLElement>(null);
   const [pinned, setPinned] = useState(false);
@@ -123,6 +129,21 @@ export function CounterHero({
           {stale ? 'NEVER RUN' : `LAST SWEEP ${sweep}`}
           <span className="mx-2 text-hairline">|</span>
           {scored} ARTICLES SCORED
+          {saturation && (
+            <>
+              <span className="mx-2 text-hairline">|</span>
+              <span
+                className="text-amber"
+                title={
+                  `${saturation.sources} sources publishing ${saturation.dailyScore.toFixed(0)} points of score a day` +
+                  ` project to ${saturation.projected.toFixed(0)} on an ordinary week at /${saturation.divisor}.` +
+                  ' Re-run `bun run calibrate`.'
+                }
+              >
+                DIVISOR /{saturation.divisor} SATURATED
+              </span>
+            </>
+          )}
         </p>
       </section>
     </>

@@ -158,6 +158,13 @@ should agree — the raw one lags by however much of the horizon the RSS windows
 empty. It reads the database and never writes to it; point it elsewhere with
 `SKYNET_DB=/path/to.db`.
 
+The site re-checks that number on its own. Once every one of a domain's sources has a
+couple of weeks of its own history, `/<slug>` projects the measured rate to steady state
+at the live divisor and prints `DIVISOR /n SATURATED` under the gauge when an ordinary
+week no longer leaves room for one half again as busy — the failure that pegged
+cybersecurity at 94.6 the day three feeds were added to it. It only ever complains in
+that direction: a domain reading near the floor is a quiet beat, not a bad constant.
+
 ## Scheduling
 
 Studio has no scheduler. Two ways to give it one:

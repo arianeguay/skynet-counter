@@ -61,6 +61,39 @@ test('a domain with scored history renders its trend under the gauge', async () 
   expect(markup).toContain('<polyline');
 });
 
+// A divisor that no longer fits its feed set has only ever been caught by
+// somebody noticing the published gauge looks wrong (STU-1401), so the whole
+// point is that it reaches the page — which means the DB-to-render wiring, not
+// just `divisorSaturation` in isolation.
+// Three weeks of rows from two sources, so both clear the maturity bar and the
+// rate the check reads is a real one. `perDay` is what each source publishes.
+function seedRate(domain: string, title: string, perDay: number): void {
+  const db = openDb();
+  const insert = db.query(
+    'INSERT OR REPLACE INTO articles (domain, url, title, source, published_at, summary, score, matched_keywords, evidence, scored_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  );
+  for (let daysAgo = 21; daysAgo >= 1; daysAgo--) {
+    const at = new Date(Date.now() - daysAgo * 864e5).toISOString();
+    for (const source of ['A Feed', 'Another Feed']) {
+      insert.run(domain, `https://example.com/${domain}/${source}/${daysAgo}`, title, source, at, '', perDay, '[]', '', at);
+    }
+  }
+  db.close();
+}
+
+test('a domain whose feeds have outgrown its divisor says so under the gauge', async () => {
+  seedRate('ai-business', 'An AI lab raised a funding round', 400);
+
+  expect(await render('ai-business')).toContain('SATURATED');
+});
+
+// The same wiring, the same maturity, a rate its divisor still has room for.
+test('a domain publishing at the rate its divisor was picked for says nothing', async () => {
+  seedRate('smarthome', 'A hub gained local control', 5);
+
+  expect(await render('smarthome')).not.toContain('SATURATED');
+});
+
 test('the page is titled and described by the domain it serves', async () => {
   const domain = DOMAINS[0]!;
   const meta = await generateMetadata({ params: Promise.resolve({ domaine: domain.slug }) });
