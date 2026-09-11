@@ -46,6 +46,13 @@ rm -f "$SWEEP_MARKER"
 # picked up without waiting out the longest interval.
 MAX_SLEEP="${MAX_SLEEP:-900}"
 
+# The AIID trend page's own schedule, separate from the domains above: a plain
+# script, not a Studio pipeline, so it shares this loop's due-file bookkeeping
+# without going through `studio run`. Weekly by default, since this data does
+# not need hourly freshness the way the gauge feeds do.
+AIID_SYNC_INTERVAL="${AIID_SYNC_INTERVAL:-604800}"
+AIID_DUE_FILE="$STATE/aiid.due"
+
 while true; do
   now=$(date +%s)
   wake=$((now + MAX_SLEEP))
@@ -77,6 +84,25 @@ while true; do
       wake=$due
     fi
   done
+
+  aiid_due=$(cat "$AIID_DUE_FILE" 2>/dev/null || echo 0)
+  if [ "$now" -ge "$aiid_due" ]; then
+    echo "--- $(date -u +%FT%TZ) aiid sync start"
+    # Unlike a domain sweep, this touches no $SWEEP_MARKER: it is a cheap,
+    # idempotent script with no billed tokens to lose from a SIGTERM mid-run,
+    # so there is nothing here for the deploy watcher to hold a rebuild back
+    # for.
+    if timeout "$SWEEP_TIMEOUT" bun scripts/aiid-sync.ts; then
+      :
+    else
+      echo "--- aiid sync failed, next attempt in ${AIID_SYNC_INTERVAL}s" >&2
+    fi
+    aiid_due=$(( $(date +%s) + AIID_SYNC_INTERVAL ))
+    echo "$aiid_due" > "$AIID_DUE_FILE"
+  fi
+  if [ "$aiid_due" -lt "$wake" ]; then
+    wake=$aiid_due
+  fi
 
   now=$(date +%s)
   if [ "$wake" -gt "$now" ]; then
