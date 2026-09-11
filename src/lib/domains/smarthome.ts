@@ -27,11 +27,14 @@ export const smarthome: Domain = {
   tagline: 'Devices getting free of the cloud they shipped bundled with',
   polarity: 'progress',
   question: { prefix: 'How close are we to', subject: 'The Great Decoupling' },
-  // Provisional, like environment's and frontend's. Measured at 4.0 score/day —
-  // genuinely low volume, not a sampling artifact, since three of the five feeds
-  // publish on a weeks-not-days cadence. /4 is chosen so an ordinary week clears
-  // SOME MOVEMENT rather than reading STALLED most weeks despite real activity;
-  // re-run `bun run calibrate` once this has swept for a few weeks.
+  // Re-run 2026-09-11 against a mature corpus (29.6 days of history): the real
+  // rate is 3.0 points of score a day, projecting to a steady signal of ~29 —
+  // at /4, an ordinary week reads 19.3 and a tripled one 33.8. Genuinely low
+  // volume, not a sampling artifact: three of the five feeds still publish on
+  // a weeks-not-days cadence. /4 stays because it is what clears SOME MOVEMENT
+  // on an ordinary week instead of reading STALLED despite real activity, the
+  // same reasoning the 2026-09-03 comment this replaces gave — confirmed
+  // rather than superseded by the re-run.
   divisor: 4,
   keywords: {
     'local control': 14,
