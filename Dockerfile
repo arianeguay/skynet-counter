@@ -32,7 +32,7 @@ FROM base AS pipeline
 # `bun install -g` also drops the executable bit on the CLI's platform binary,
 # so studio would die with EACCES spawning its own baseline build.
 ENV BUN_INSTALL=/usr/local HOME=/home/bun
-RUN bun install -g @studio-foundation/cli@0.17.0 @anthropic-ai/claude-code \
+RUN bun install -g @studio-foundation/cli@0.19.0 @anthropic-ai/claude-code \
  && chmod +x /usr/local/install/global/node_modules/@studio-foundation/cli-linux-x64*/studio
 COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
 COPY --chown=bun:bun . .

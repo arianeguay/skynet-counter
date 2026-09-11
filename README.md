@@ -12,7 +12,7 @@ feeds ──▶ studio pipeline ──▶ data/skynet.db ──▶ Next.js (page
 ## Requirements
 
 - [Bun](https://bun.sh) 1.2+
-- [Studio](https://github.com/studio-foundation/studio) 0.17.0+ (`studio --version`)
+- [Studio](https://github.com/studio-foundation/studio) 0.19.0+ (`studio --version`)
 - The [Claude Code](https://claude.com/claude-code) CLI, logged in (`claude`)
 
 No API key. The pipeline uses Studio's `claude-code` provider, which spawns the

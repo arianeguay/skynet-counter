@@ -1,6 +1,6 @@
-import { parseFeed, readInput, emit, USER_AGENT, type RawArticle } from './rss.ts';
+import { parseFeed, readContext, emit, USER_AGENT, type RawArticle } from './rss.ts';
 
-const { source, url } = await readInput();
+const { input: { source, url } = {} } = await readContext<{ input?: { source: string; url: string } }>();
 if (!source || !url) throw new Error(`Feed item is missing source or url: ${JSON.stringify({ source, url })}`);
 
 // A dead feed emits an empty batch rather than throwing. `on_item_failure:
