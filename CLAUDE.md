@@ -48,6 +48,15 @@ over that list, so a domain's feed table lives in exactly one place. It used to 
 in two — five near-identical stages whose names had to match a table in
 `fetch-feed.ts` — and every hourly sweep failed the once they diverged (STU-1191).
 
+**Adding a feed moves the domain's divisor.** `divisor` is picked from a feed set's
+measured score per day, so widening the set raises the counter on the feed list
+rather than on the news — the STU-1171 failure with the sign flipped. Three security
+newsrooms were added to `cybersecurite` on 2026-09-11 against a divisor calibrated on
+the three feeds before them, so that number is now knowingly too small until
+`bun run calibrate` runs on the host over real stored history. Do the same
+arithmetic, out loud, whenever a feed goes in: a feed that publishes at the rate of
+the ones already there is a doubling, not a rounding error.
+
 Every feed is scored against its linked page rather than its RSS summary. That is
 unconditional, and there is no per-feed opt-out: measuring all five feeds on 2026-09-01
 (STU-1200) found the summary worse everywhere, from 3.3x on the mildest feed to hnrss,
@@ -156,9 +165,15 @@ Do not mirror the feed list into the domain module. Two copies that have to agre
 what STU-1191 already cost a sweep.
 
 Adding a domain is: a module under `src/lib/domains/`, an entry in its `DOMAINS`
-array, an input file named for the slug. Nothing in `db.ts`, `dedupe.ts`,
+array, an input file named for the slug, and a `slug:seconds` pair in
+`docker-compose.yml`'s `SKYNET_SCHEDULE` default. Nothing in `db.ts`, `dedupe.ts`,
 `aggregate.ts` or the frontend needs touching — the scripts read `currentDomain()`
-and the site reads the registry.
+and the site reads the registry. The schedule is the one that is easy to forget and
+silent when forgotten: `frontend` shipped without it and sat at `BASE` because
+nothing ever swept it, which is why
+[tests/docker/schedule-default.test.ts](tests/docker/schedule-default.test.ts) reads
+the compose file and fails on a registered domain that is missing from it
+(STU-1282).
 
 ### Routes
 
@@ -351,6 +366,20 @@ identically, and stopped working the moment a French feed spelled a word
 unaccented in the headline and accented in the body. Write French terms
 unaccented; an accented article still reaches them.
 
+**The half that answers "is this about AI?" is shared.** `AI_SUBJECT` in
+[ai-subject.ts](src/lib/domains/ai-subject.ts) carries it once, and both gated
+domains spread it into their own list rather than copying it: two lists answering
+literally the same question are two rules that have to agree, and a lab added to one
+and not the other makes the same article on-subject on one counter and invisible on
+the other — silently, the way the duplicated feed table failed in STU-1191. What a
+domain does *not* share is the rest of its gate. `environment` extends the shared
+list with the physical plant — `data center`, `gpu`, `training run` — because a
+buildout story can name the campus and never the technology. `ai-business`
+deliberately does not extend it at all: the same terms would pass every data-centre
+REIT on the funding wire, which is a real story on the wrong beat. The same term is
+load-bearing for one counter and a hole in the other, which is the "read the
+measurement twice, for the two purposes" rule applied to the gate itself.
+
 The gate runs in two places, from one definition in
 [keywords.ts](src/lib/keywords.ts):
 
@@ -387,6 +416,47 @@ to the feeds. Run that probe, then `bun run calibrate` — it now reports what
 fraction of the stored corpus the gate holds back, and `divisor: 24` was picked
 from the **ungated** score per day, so it is too small by however much the gate
 cuts.
+
+### The one table that was reasoned instead of measured
+
+`ai-business` (STU-1293) is the exception to "Picking a domain's keywords", and it is
+marked as one in its own module so nothing downstream mistakes it for a measured
+table. The probe needs live feeds; the sandbox it was written in had no egress to
+them, the same constraint that shipped `environment`'s subject list and
+Radio-Canada's fils unverified. So its weights, its subject gate and its divisor are
+a first pass. Run the probe over a week of stored rows, then `bun run calibrate`,
+before trusting the number it publishes.
+
+Three things about it are decisions rather than guesses, and are worth not
+re-litigating:
+
+- **It reads as risk.** The other two domains that failed as risk failed because
+  their beat publishes no events (STU-1217, STU-1219). Business press has the
+  opposite problem — it publishes almost nothing *but* events, so the work is
+  keeping the beat's own vocabulary (`startup`, `investor`, `billion`, `funding`)
+  out of a table full of transactions. Money concentrating behind AI is what this
+  site was built to watch getting louder, so rule 2 points one way: the pile
+  growing scores, the market re-pricing it does not. A down round, a write-down, a
+  deal called off and layoffs at a lab are all the correction, not more of the thing.
+- **`valuation` cannot be a keyword.** The matcher scans by substring and
+  *evaluation* contains it — on a beat where half the corpus is about model evals,
+  that is not a rare collision but most of the sample. `valued at` says the same
+  thing and is unreachable from "evaluated". This is the `vulnerabilit` lesson
+  (STU-1223) from the other side: substring matching reaches inflections for free
+  and reaches unrelated words for free too.
+- **`ipo` is a known hazard, kept on purpose.** Three letters, no word boundaries,
+  and "tripod" contains it — [its test](src/lib/domains/ai-business.test.ts) asserts
+  that it does, so the cost is written down rather than discovered. It stays because
+  the headline form is what funding coverage uses and none of the colliding words
+  belong to this beat. It is the first entry to check when the probe runs, the way
+  `délestage` is in `environment`.
+
+The divisor is biased **high** for the same reason: unmeasured, on the highest-volume
+feed set on the site, the failure that matters is a divisor too small pegging the
+gauge at 100 and never coming back down (STU-1171). /64 reads 42 at an assumed 200
+points a day and 27 at half that — quiet but legible — where /32 would read 72 and
+peg on any busy week. A guess that fails quiet is recoverable; one that fails pegged
+looks exactly like a working counter.
 
 ### Polarity: not every counter reads the same way
 

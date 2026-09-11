@@ -1,3 +1,4 @@
+import { AI_SUBJECT } from './ai-subject';
 import type { Domain } from './index';
 
 // Built from a measurement rather than from what sounds like climate vocabulary
@@ -67,29 +68,14 @@ export const environment: Domain = {
   // strict cuts the score per day, and the divisor was picked from the ungated
   // rate.
   subject: [
-    // Capitalised on purpose: matched case-sensitively, so the French verb in
-    // "j'ai" does not open the gate. See `mentionsSubject` (STU-1292).
-    'AI',
-    'IA',
-    'artificial intelligence',
-    'intelligence artificielle',
-    'machine learning',
-    'apprentissage automatique',
-    'neural network',
-    'neural networks',
-    'reseau de neurones',
-    'reseaux de neurones',
-    'llm',
-    'llms',
-    'large language model',
-    'large language models',
-    'chatbot',
-    'chatbots',
-    'chatgpt',
-    'openai',
-    'anthropic',
-    'deepmind',
-    'nvidia',
+    // The half every gated domain shares — the terms that say an article is
+    // about AI at all, capitalised acronyms included, so `ai-business` and this
+    // one cannot drift apart on the same question (see `ai-subject.ts`).
+    ...AI_SUBJECT,
+    // This domain's own half: the physical plant. A story can name the buildout
+    // — a campus outside Atlanta, a turbine order, a water permit — without ever
+    // naming the thing being built, so the gate has to reach it through the
+    // hardware as well as through the technology.
     'data center',
     'data centers',
     'data centre',

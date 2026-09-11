@@ -17,6 +17,21 @@ feeds:
     url: https://thehackernews.com/feeds/posts/default
   - source: Krebs on Security
     url: https://krebsonsecurity.com/feed/
+  # Added 2026-09-11, unmeasured — no egress to the publishers from the sandbox
+  # this went in from, the same position STU-1292 shipped Radio-Canada's fils in.
+  # All three are incident newsrooms on this exact beat, so they need no subject
+  # list; what they change is volume, and that is the thing to watch. The divisor
+  # in `cybersecurite.ts` is 32, calibrated on 2026-09-01 against three feeds
+  # publishing 97 points of score a day. These three publish more between them
+  # than the three above do, so the gauge will climb on the feed set rather than
+  # on the news — run `bun run calibrate` on the host once a couple of weeks of
+  # rows have accumulated, and expect the divisor to roughly double.
+  - source: BleepingComputer
+    url: https://www.bleepingcomputer.com/feed/
+  - source: The Record
+    url: https://therecord.media/feed
+  - source: Dark Reading
+    url: https://www.darkreading.com/rss.xml
   # 2 of 25 articles above zero, 1.5% of the signal, measured twice a day apart.
   # Kept as the only source that is not security trade press — the other three
   # cover one beat. Ars Technica AI went on that same measurement, at 0 of 18
