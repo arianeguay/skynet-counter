@@ -4,9 +4,9 @@ import { DOMAINS } from '@/lib/domains';
 
 const SCRIPT = new URL('../../.studio/scripts/fetch-feed.ts', import.meta.url).pathname;
 
-async function runFetch(additional_context: string) {
+async function runFetch(input: { source: string; url: string }) {
   const proc = Bun.spawn(['bun', SCRIPT], {
-    stdin: new TextEncoder().encode(JSON.stringify({ additional_context })),
+    stdin: new TextEncoder().encode(JSON.stringify({ input })),
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -59,7 +59,7 @@ interface FetchOutput {
 async function fetchFrom(post?: string, postType?: string, secondPost?: string) {
   const feed = serveFeed(post, postType, secondPost);
   try {
-    const { out, err } = await runFetch(`source: Hacker News\nurl: ${feed.url.origin}/feed\n`);
+    const { out, err } = await runFetch({ source: 'Hacker News', url: `${feed.url.origin}/feed` });
     return { output: JSON.parse(out) as FetchOutput, err };
   } finally {
     feed.stop(true);
@@ -71,10 +71,10 @@ async function summaryFor(post?: string, postType?: string) {
   return output.articles[0]?.summary ?? '';
 }
 
-// The engine YAML-dumps a map item into `additional_context` rather than handing
-// the script its input, so these are the exact bytes fetch-feed.ts has to read.
-test('reads source and url out of the engine dump, quoted or not', async () => {
-  const { code, out } = await runFetch("source: 'AI: The Newsletter'\nurl: http://127.0.0.1:1/feed\n");
+// A source containing a colon is exactly what the deleted YAML shim got wrong —
+// `readInput` split on ": " and would have truncated this at "AI".
+test('reads a source containing a colon off ctx.input, structurally', async () => {
+  const { code, out } = await runFetch({ source: 'AI: The Newsletter', url: 'http://127.0.0.1:1/feed' });
   expect(code).toBe(0);
   const result = JSON.parse(out) as { source: string; count: number; error: string | null };
   expect(result.source).toBe('AI: The Newsletter');
@@ -89,7 +89,7 @@ test('the feed summary is emitted without reading the linked page', async () => 
   let postRequests = 0;
   const feed = serveFeed(undefined, undefined, undefined, () => postRequests++);
   try {
-    const { out, err } = await runFetch(`source: Hacker News\nurl: ${feed.url.origin}/feed\n`);
+    const { out, err } = await runFetch({ source: 'Hacker News', url: `${feed.url.origin}/feed` });
     const output = JSON.parse(out) as FetchOutput;
     expect(output.articles[0]?.summary).toBe(BOILERPLATE);
     expect(postRequests).toBe(0);
