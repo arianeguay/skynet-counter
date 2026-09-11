@@ -32,9 +32,11 @@ feeds:
     url: https://therecord.media/feed
   - source: Dark Reading
     url: https://www.darkreading.com/rss.xml
-  # 2 of 25 articles above zero, 1.5% of the signal, measured twice a day apart.
-  # Kept as the only source that is not security trade press — the other three
-  # cover one beat. Ars Technica AI went on that same measurement, at 0 of 18
-  # over two readings, contributing no score to remove (STU-1221).
-  - source: Hacker News
-    url: https://hnrss.org/newest?q=AI+OR+LLM+OR+agent+OR+exploit&points=80
+  # The breadth-hedge Hacker News feed (hnrss.org, AI/LLM/agent/exploit query)
+  # was removed here on 2026-09-11 (STU-1272). STU-1221 kept it on two readings
+  # a day apart, both 2 of 25 above zero, on the reasoning that it was the only
+  # non-security-trade-press source. The re-check that reasoning called for: a
+  # third reading after the corpus turned over (52 articles over its 14.1-day
+  # window) still gave 3.1 of 231.7 points of score a day, 1.3% of the signal —
+  # under the 2% floor the issue set for keeping the seat. Removed the way Ars
+  # Technica AI was on the same measurement (STU-1221).
