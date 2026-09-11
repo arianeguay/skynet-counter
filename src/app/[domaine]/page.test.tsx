@@ -94,6 +94,17 @@ test('a domain publishing at the rate its divisor was picked for says nothing', 
   expect(await render('smarthome')).not.toContain('SATURATED');
 });
 
+// A score like 95% can be a divisor an added feed set outgrew, not a real spike
+// (STU-1401), and nothing else on the page tells a first-time reader that (STU-1400).
+test('every domain page frames the gauge as a relative reading, not an absolute level', async () => {
+  seed(DEFAULT_DOMAIN, 'https://example.com/framing', 41, 'A scored story');
+
+  const markup = await render(DEFAULT_DOMAIN);
+
+  expect(markup).toContain('not an');
+  expect(markup).toContain('absolute risk level');
+});
+
 test('the page is titled and described by the domain it serves', async () => {
   const domain = DOMAINS[0]!;
   const meta = await generateMetadata({ params: Promise.resolve({ domaine: domain.slug }) });
