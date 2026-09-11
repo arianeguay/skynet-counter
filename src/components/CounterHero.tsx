@@ -136,7 +136,8 @@ export function CounterHero({
                 className="text-amber"
                 title={
                   `${saturation.sources} sources publishing ${saturation.dailyScore.toFixed(0)} points of score a day` +
-                  ` project to ${saturation.projected.toFixed(0)} on an ordinary week at /${saturation.divisor}.` +
+                  ` project a busy week to ${saturation.busy.toFixed(1)} and a crisis week to ${saturation.crisis.toFixed(1)}` +
+                  ` at /${saturation.divisor}.` +
                   ' Re-run `bun run calibrate`.'
                 }
               >
@@ -144,6 +145,10 @@ export function CounterHero({
               </span>
             </>
           )}
+        </p>
+        <p className="max-w-md text-center text-[11px] text-ash">
+          A relative reading against this domain&apos;s own recent history, not an
+          absolute risk level — a busy news day moves it as much as a real one.
         </p>
       </section>
     </>
