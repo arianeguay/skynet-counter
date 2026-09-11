@@ -14,15 +14,21 @@ export const environment: Domain = {
   slug: 'environment',
   label: 'Environment',
   tagline: 'What AI compute is taking from the grid, the air and the water table',
-  // Provisional. Measured at 51.8 score/day across the feed set, which projects
-  // to a steady signal of ~497, so /24 reads 33 on an ordinary week and leaves
-  // room to 74 on a tripled one. One feed's RSS window was a single day at the
-  // time, and a rate off a one-day window is the mistake STU-1171 records, so
-  // re-run `bun run calibrate` against real stored history before trusting this.
+  // Calibrated 2026-09-11 (STU-1275) by `bun run calibrate` against the live,
+  // gated corpus — replacing the 2026-09-02 guess above, which was picked from
+  // Data Center Dynamics's rate off a one-day RSS window, exactly the STU-1171
+  // mistake this domain was re-checked for. The gated feed set now publishes
+  // 16.5 points of score a day, projecting to a steady signal of ~159: /8 reads
+  // 31.8 on an ordinary week and 71.5 on a tripled one, the closest fit among
+  // the standard divisors to "mid-gauge with headroom at 3x" (STU-1275's own
+  // bar) that the grid actually offers — nothing hits 50 without also pegging
+  // the tripled-week case.
   //
-  // Now also too small by whatever the subject gate below cuts: it was picked from
-  // an ungated score per day that included the oil spills (STU-1291). `calibrate`
-  // reports the size of that cut.
+  // One caveat this number carries forward: Radio-Canada environnement
+  // (STU-1292) has only a 3.5-day RSS window, short of the ~2-week bar this
+  // project otherwise waits for before trusting a feed's rate. Its volume is
+  // negligible (0.29 articles/day) so it cannot move this number much either
+  // way, but re-run calibrate once it matures rather than treating /8 as final.
   polarity: 'risk',
   question: { prefix: 'What is the machine', subject: 'drinking' },
   // TheAIMeters' live totals, under the gauge. The counter above it measures how
@@ -39,7 +45,7 @@ export const environment: Domain = {
     src: 'https://widget.theaimeters.com/widget?meters=estimated-ai-prompts-last24h%2Celectricity-ai-today%2Cwater-ai-today%2Cco2-ai-today%2Cgpu-hours-today%2Chuggingface-models&theme=dark&lang=en',
     height: 800,
   },
-  divisor: 24,
+  divisor: 8,
   // The gate the keyword table cannot supply. Four of this domain's six feeds
   // are general climate press, and its table names quantities in the physical
   // world rather than anything about computing — so an oil spill mentioning an
@@ -64,9 +70,9 @@ export const environment: Domain = {
   //
   // Reasoned from the domain's definition, not yet measured against the corpus
   // the way the keyword table was. Run the probe in "Picking a domain's
-  // keywords" over a live sweep before trusting `divisor` again — a gate this
-  // strict cuts the score per day, and the divisor was picked from the ungated
-  // rate.
+  // keywords" over a live sweep before trusting this list's own hit rate —
+  // `divisor` above is now calibrated against the gated rate (STU-1275), so
+  // this list only affects severity weighting, not the counter's overall scale.
   subject: [
     // The half every gated domain shares — the terms that say an article is
     // about AI at all, capitalised acronyms included, so `ai-business` and this
