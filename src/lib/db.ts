@@ -581,7 +581,7 @@ export function readDivisorSaturation(domain: Domain): DivisorSaturation | null 
 // The AIID trend page's whole read: every stored incident's date, bucketed by
 // year with the trailing holdback already applied. Computed on read rather
 // than stored as a yearly snapshot, the same reason `counterHistory` recomputes
-// instead of storing a daily one — a correction to the holdback window, or a
+// instead of storing a daily one: a correction to the holdback window, or a
 // backfill rerun that changes a date, corrects every past reading at once.
 export function readAiidYearCounts(now = Date.now()): YearCount[] {
   const db = openDb();
@@ -593,7 +593,7 @@ export function readAiidYearCounts(now = Date.now()): YearCount[] {
   }
 }
 
-// When the page's data last changed — the newer of the one-time backfill and
+// When the page's data last changed: the newer of the one-time backfill and
 // the most recent RSS sync, since either can add rows.
 export function readAiidUpdatedAt(): string | null {
   const db = openDb();

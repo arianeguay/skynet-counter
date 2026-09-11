@@ -12,7 +12,7 @@ export interface AiidIncident {
 
 // AIID backfills past years continuously as new reports come in, so the most
 // recent stretch always reads artificially low while that backfill is still
-// happening — not because incidents stopped, but because reporting on them
+// happening: not because incidents stopped, but because reporting on them
 // hasn't caught up yet. Roughly six months, named in days so the cutoff is a
 // point in time rather than "this calendar year".
 export const AIID_HOLDBACK_DAYS = 183;
@@ -112,7 +112,7 @@ export function parseIncidentsCsv(csv: string): AiidIncident[] {
 }
 
 // AIID's RSS description ends with a citation like
-// `(https://incidentdatabase.ai/cite/1684#7927)` — the incident ID it names,
+// `(https://incidentdatabase.ai/cite/1684#7927)`: the incident ID it names,
 // regardless of which of that incident's reports the item itself is about.
 export function extractCiteIncidentId(text: string): number | null {
   const m = text.match(/\/cite\/(\d+)/);
