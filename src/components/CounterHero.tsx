@@ -145,6 +145,10 @@ export function CounterHero({
             </>
           )}
         </p>
+        <p className="max-w-md text-center text-[11px] text-ash">
+          A relative reading against this domain&apos;s own recent history, not an
+          absolute risk level — a busy news day moves it as much as a real one.
+        </p>
       </section>
     </>
   );
