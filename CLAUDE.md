@@ -55,7 +55,10 @@ newsrooms were added to `cybersecurite` on 2026-09-11 against a divisor calibrat
 the three feeds before them, so that number is now knowingly too small until
 `bun run calibrate` runs on the host over real stored history. Do the same
 arithmetic, out loud, whenever a feed goes in: a feed that publishes at the rate of
-the ones already there is a doubling, not a rounding error.
+the ones already there is a doubling, not a rounding error. The saturation check
+under "The database" is the backstop, not the method — it stays silent for the two
+weeks the new feed needs to have a rate at all, which is exactly the window the
+arithmetic has to cover.
 
 Every feed is scored against its linked page rather than its RSS summary. That is
 unconditional, and there is no per-feed opt-out: measuring all five feeds on 2026-09-01
@@ -771,6 +774,38 @@ the steady state reads 41, and `DIVISOR` picked off the first number is 2x too s
 The projection measures each feed over its own window and sums them, which is why
 `calibrate` prints a per-feed rate rather than one articles/day for the corpus
 (STU-1171).
+
+**A divisor its feed set has outgrown flags itself.** Nothing re-checked that number
+when the feed list moved, and the only thing that ever caught it was a human reading
+the published gauge: `cybersecurite` went to six feeds on 2026-09-11 against a divisor
+picked for three, and the site read 94.6 within a day. `divisorSaturation()` in
+[calibration.ts](src/lib/calibration.ts) is that check — it groups a domain's scored
+history by source the way `calibrate` does, projects the measured rate to steady state
+at the domain's live divisor, and the page prints `DIVISOR /n SATURATED` beside the
+sweep stamp when an ordinary week no longer leaves room for one 1.5x busier. It
+recomputes on read, the way `counterHistory` and `readBalance` do: no cron, no table,
+no stored verdict. A calendar recheck would be the wrong shape anyway — re-running
+`calibrate` weekly conflates "the feed set changed" with "the news got louder", and
+only the first should ever move a divisor.
+
+Three things about it are deliberate. It **flags one direction only**: a mature domain
+sitting near `BASE` is the correct reading for `frontend` and `smarthome`, and calling
+that miscalibration is the false positive STU-1217 and STU-1219 already rejected. It
+**waits for every contributing source to be mature** (`SOURCE_MATURITY_DAYS`, 14, the
+bar the input files already use in prose), because a feed added on Tuesday has no rate
+yet — "not enough data" is not "fine", and the page can usefully say neither, so it
+says nothing. And its bar is **looser than `calibrate`'s own**: that script calls a
+divisor defensible only when a *tripled* week still has somewhere to go, while this
+fires unattended on a public page, so the gap between 1.5x and 3x is the room a human's
+judgement gets.
+
+Maturity is measured on `published_at` here, which is not the trap STU-1283 names. That
+question was how long this pipeline has been watching, which a first sweep's backlog can
+antedate — hence `scored_at` in `readBalance` and `readCounterTrend`. This question is
+how deep the sample a rate was divided by is, and the rows' own publication span *is*
+that sample, which is the whole reason `calibrate` measures per feed rather than per
+corpus. A source that has published nothing yet is invisible rather than immature: it
+contributes no score either, so it can only make the check quieter.
 
 `feed_sweeps` is **one row per source per sweep** — the fetch outcome and the number of
 linked pages `dedupe` could not read — and it is where a feed that stops contributing

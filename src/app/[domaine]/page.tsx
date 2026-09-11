@@ -6,7 +6,7 @@ import { BalanceBand } from '@/components/BalanceBand';
 import { DomainEmbed } from '@/components/DomainEmbed';
 import { DomainNav } from '@/components/DomainNav';
 import { FeedAlert } from '@/components/FeedAlert';
-import { readBalance, readCounterTrend, readSnapshot } from '@/lib/db';
+import { readBalance, readCounterTrend, readDivisorSaturation, readSnapshot } from '@/lib/db';
 import { domainBySlug } from '@/lib/domains';
 
 // Never prerendered. `generateStaticParams` here looks harmless and is not: it
@@ -53,6 +53,7 @@ export default async function DomainPage({ params }: { params: Promise<{ domaine
         polarity={domain.polarity}
         question={domain.question}
         history={readCounterTrend(domain)}
+        saturation={readDivisorSaturation(domain)}
       />
 
       <FeedAlert feedErrors={feedErrors} hostOutage={hostOutage} />

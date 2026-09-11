@@ -55,7 +55,7 @@ const SCENARIOS: Record<string, Scenario> = {
     feeds: 'healthy',
   },
   critical: {
-    what: 'the top band, and a log that is almost all CRIT',
+    what: 'the top band, a log that is almost all CRIT, and DIVISOR SATURATED with it',
     target: 88,
     feeds: 'healthy',
   },

@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { BASE, HISTORY_WINDOW_DAYS, HORIZON_DAYS, counterHistory, type Sourced } from './counter';
 import { DOMAINS, domainBySlug, type Domain } from './domains';
 import { normalizedDeviation, type DomainDeviation } from './balance';
+import { divisorSaturation, type DivisorSaturation } from './calibration';
 import { mentionsSubject } from './keywords';
 
 // Read per call, not once at module load: capturing it at import time meant
@@ -539,6 +540,27 @@ export function readCounterTrend(domain: Domain): number[] {
     const windowDays = Math.min(TREND_WINDOW_DAYS, ageDays);
     const since = new Date(Date.now() - (windowDays + HORIZON_DAYS) * 864e5).toISOString();
     return counterHistory(scoredHistory(db, domain, since), Date.now(), BASE, domain.divisor, windowDays);
+  } finally {
+    db.close();
+  }
+}
+
+// Whether this domain's feed set has outgrown the divisor it was calibrated
+// against, read on every render of its page. It costs one horizon-wide query,
+// the same one `calibrate` runs — and it is the same read `readCounterTrend`
+// already makes, so a domain with a subject gate is checked on the rows its
+// counter actually counts rather than on every row its feeds produced
+// (STU-1291).
+//
+// Deliberately not on `/api/skynet` or its summary: that payload is the desktop
+// widget's contract, and a second field there is a second place for it to drift.
+// The person who would act on this reads the page (STU-1401).
+export function readDivisorSaturation(domain: Domain): DivisorSaturation | null {
+  const db = openDb();
+  try {
+    const now = Date.now();
+    const since = new Date(now - HORIZON_DAYS * 864e5).toISOString();
+    return divisorSaturation(scoredHistory(db, domain, since), now, domain.divisor);
   } finally {
     db.close();
   }
