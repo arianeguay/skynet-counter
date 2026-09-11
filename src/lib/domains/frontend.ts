@@ -15,10 +15,15 @@ export const frontend: Domain = {
   tagline: 'Capabilities landing in every browser, not just the newest one',
   polarity: 'progress',
   question: { prefix: 'How close are we to', subject: 'The Convergence' },
-  // Provisional, like environment's. Measured at 81.2 score/day, but A List Apart's
-  // RSS window held a single day and supplied 74 of that — the one-day extrapolation
-  // STU-1171 exists to warn about. Re-run `bun run calibrate` once this has stored
-  // a few weeks of history.
+  // Re-run 2026-09-11 against a mature corpus (29.3 days of history, every feed
+  // past a week of its own RSS window): the real rate is 1.2 points of score a
+  // day, projecting to a steady signal of ~12 — the counter reads within a
+  // point of BASE at every divisor from /8 to /40. There is no divisor that
+  // reads this feed set mid-gauge on an ordinary week without shrinking small
+  // enough to turn a single article into a false crisis; the domain is
+  // genuinely this quiet, not miscalibrated (matches the "few weeks of
+  // history" check the 2026-09-03 comment this replaces asked for). 48 stays
+  // as the least eventful choice among the tested divisors.
   divisor: 48,
   keywords: {
     'available in all browsers': 14,
