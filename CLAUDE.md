@@ -412,10 +412,10 @@ starts costing real stories is a list to widen, not a mechanism to remove.
 **`environment`'s list is reasoned, not measured.** The keyword table was picked
 by running the probe in "Picking a domain's keywords" over 70 hydrated articles;
 the subject list was not, because the sandbox the fix was written in has no egress
-to the feeds. Run that probe, then `bun run calibrate` — it now reports what
-fraction of the stored corpus the gate holds back, and `divisor: 24` was picked
-from the **ungated** score per day, so it is too small by however much the gate
-cuts.
+to the feeds. Run that probe when live feeds are reachable — `calibrate` reports
+what fraction of the stored corpus the gate holds back, and `divisor: 8` (STU-1275)
+is already picked from the **gated** score per day, so widening this list moves
+severity weighting, not the counter's overall scale.
 
 ### The one table that was reasoned instead of measured
 
