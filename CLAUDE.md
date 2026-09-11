@@ -782,22 +782,33 @@ picked for three, and the site read 94.6 within a day. `divisorSaturation()` in
 [calibration.ts](src/lib/calibration.ts) is that check — it groups a domain's scored
 history by source the way `calibrate` does, projects the measured rate to steady state
 at the domain's live divisor, and the page prints `DIVISOR /n SATURATED` beside the
-sweep stamp when an ordinary week no longer leaves room for one 1.5x busier. It
-recomputes on read, the way `counterHistory` and `readBalance` do: no cron, no table,
-no stored verdict. A calendar recheck would be the wrong shape anyway — re-running
-`calibrate` weekly conflates "the feed set changed" with "the news got louder", and
-only the first should ever move a divisor.
+sweep stamp. It recomputes on read, the way `counterHistory` and `readBalance` do: no
+cron, no table, no stored verdict. A calendar recheck would be the wrong shape anyway —
+re-running `calibrate` weekly conflates "the feed set changed" with "the news got
+louder", and only the first should ever move a divisor.
 
-Three things about it are deliberate. It **flags one direction only**: a mature domain
-sitting near `BASE` is the correct reading for `frontend` and `smarthome`, and calling
-that miscalibration is the false positive STU-1217 and STU-1219 already rejected. It
+**What it flags changed with STU-1270's soft knee (STU-1402).** The check used to
+compare an unclamped straight line to the literal ceiling of 100 — a wall `counterFrom`
+no longer has above `HEADROOM_KNEE`, where it asymptotes instead. So it now compares a
+busy (`BUSY_MULTIPLE`, 2x steady) and a crisis (`CRISIS_MULTIPLE`, 3x steady) week
+through the real formula and flags when the two have compressed to within
+`MIN_HEADROOM` (8) points of each other — "still has somewhere to go" against a curve
+that never quite reaches 100 means the gap between two plausible futures, not the
+distance to a wall. Below `HEADROOM_KNEE` the gate is skipped outright: on the straight
+line that gap tracks how quiet a domain is, not how saturated its divisor is, and a
+mature-but-quiet domain (`frontend`, `smarthome`) can land under `MIN_HEADROOM` on a
+small divisor with plenty of ceiling left — the same false positive STU-1217 and
+STU-1219 already rejected, reached from a different direction.
+
+Three more things about it are deliberate. It **flags one direction only**: a mature
+domain sitting near `BASE` is the correct reading for `frontend` and `smarthome`. It
 **waits for every contributing source to be mature** (`SOURCE_MATURITY_DAYS`, 14, the
 bar the input files already use in prose), because a feed added on Tuesday has no rate
 yet — "not enough data" is not "fine", and the page can usefully say neither, so it
 says nothing. And its bar is **looser than `calibrate`'s own**: that script calls a
 divisor defensible only when a *tripled* week still has somewhere to go, while this
-fires unattended on a public page, so the gap between 1.5x and 3x is the room a human's
-judgement gets.
+fires unattended on a public page, so a human's judgement gets more room than an
+automated warning does.
 
 Maturity is measured on `published_at` here, which is not the trap STU-1283 names. That
 question was how long this pipeline has been watching, which a first sweep's backlog can

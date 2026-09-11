@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { BASE, steadySignal, type Sourced } from './counter';
+import { type Sourced } from './counter';
 import {
-  SATURATION_MULTIPLE,
+  MIN_HEADROOM,
   SOURCE_MATURITY_DAYS,
   divisorSaturation,
   sourceRates,
@@ -46,9 +46,11 @@ test('a mature feed set whose ordinary week pegs the gauge is flagged', () => {
   expect(flag!.divisor).toBe(32);
   expect(flag!.sources).toBe(6);
   expect(flag!.dailyScore).toBeCloseTo(232, 0);
-  // Unclamped on purpose: the clamp is the complaint, so reporting 100 would say
-  // nothing about how far past the ceiling the projection sits.
-  expect(flag!.projected).toBeCloseTo(BASE + steadySignal(232) / 32, 0);
+  // The real, soft-knee formula, not the discarded straight line: busy and
+  // crisis have collapsed to within a few points of each other, well under
+  // MIN_HEADROOM.
+  expect(flag!.crisis - flag!.busy).toBeLessThan(MIN_HEADROOM);
+  expect(flag!.busy).toBeGreaterThan(90);
 });
 
 // The same feed set against the divisor it was actually given on 2026-09-11.
@@ -95,17 +97,25 @@ test('a source that has published nothing yet neither flags nor blocks', () => {
   expect(divisorSaturation([...OUTGROWN, ...todayOnly], NOW, 64)).toBeNull();
 });
 
-// The bar is the headroom, not a percentage of the gauge: the trip point is
-// wherever a week `SATURATION_MULTIPLE` times an ordinary one stops fitting.
+// The bar is the headroom between busy and crisis, not a percentage of the
+// gauge: the trip point is wherever the two stop being tellable apart. There
+// is no closed form for it once both readings sit on the compressed branch, so
+// this binary-searches divisorSaturation itself rather than duplicating its
+// math — a smaller divisor compresses busy and crisis together monotonically,
+// so the flag flips exactly once as the divisor grows.
 test('the flag turns on exactly where a busier week stops fitting on the gauge', () => {
   const rows = feed('One Feed', 50, 20);
-  const steady = steadySignal(50);
 
-  // The divisor at which a 1.5x week lands exactly on 100.
-  const edge = (SATURATION_MULTIPLE * steady) / (100 - BASE);
+  let flagged = 1;
+  let clear = 500;
+  for (let i = 0; i < 40; i++) {
+    const mid = (flagged + clear) / 2;
+    if (divisorSaturation(rows, NOW, mid)) flagged = mid;
+    else clear = mid;
+  }
 
-  expect(divisorSaturation(rows, NOW, edge * 0.99)).not.toBeNull();
-  expect(divisorSaturation(rows, NOW, edge * 1.01)).toBeNull();
+  expect(divisorSaturation(rows, NOW, flagged)).not.toBeNull();
+  expect(divisorSaturation(rows, NOW, clear)).toBeNull();
 });
 
 test('each source is rated over its own window, and today is left out of it', () => {
