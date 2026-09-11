@@ -1,4 +1,4 @@
-import { BASE, HALF_LIFE_DAYS, HORIZON_DAYS, steadySignal, type Sourced } from './counter';
+import { BASE, HALF_LIFE_DAYS, HEADROOM_KNEE, HORIZON_DAYS, counterFrom, steadySignal, type Sourced } from './counter';
 
 // A divisor is picked by hand, once, from a feed set's measured score per day —
 // and nothing re-checks it when that feed set changes. Adding a feed moves the
@@ -24,16 +24,27 @@ import { BASE, HALF_LIFE_DAYS, HORIZON_DAYS, steadySignal, type Sourced } from '
 // as the depth the two feeds beside it have to reach.
 export const SOURCE_MATURITY_DAYS = 14;
 
-// The headroom an ordinary week has to leave. `calibrate`'s own headroom table
-// asks for more than this — it prints a 3x column and calls a divisor defensible
-// only when a tripled week still has somewhere to go — and the gap between the
-// two bars is deliberate: this fires unattended on a public page, so it flags the
-// failure rather than every divisor a human might want to argue about. At 1.5 the
-// trip point is an ordinary week reading ~71, which is a gauge with nothing left
-// to say.
-export const SATURATION_MULTIPLE = 1.5;
+// The two checkpoints this asks the gauge to keep apart — the same "busy 2x" /
+// "crisis 3x" columns `calibrate`'s own headroom table already prints, reused
+// here so the check answers the same question in the same units the page's own
+// diagnostic script does.
+export const BUSY_MULTIPLE = 2;
+export const CRISIS_MULTIPLE = 3;
 
-const CEILING = 100;
+// How many gauge points must still separate a busy week's reading from a
+// crisis week's. Before STU-1270's soft knee this check compared an unclamped
+// straight line to the literal ceiling of 100 — a hard wall the formula no
+// longer has above `HEADROOM_KNEE`, where it asymptotes instead. `crisis -
+// busy` is what "still has somewhere to go" means against a curve that never
+// quite reaches 100: shrinking toward zero is the flattening, whatever the
+// absolute reading sits at.
+//
+// Measured against the two real cases already in this file's tests: the
+// outgrown cybersecurite/32 set (the actual STU-1401 incident) separates busy
+// from crisis by 5.0 points once re-derived against the soft knee; the /64
+// divisor it was bumped to separates them by 13.3. 8 sits in the gap between
+// the two and reproduces both verdicts unchanged.
+export const MIN_HEADROOM = 8;
 
 // One source's measured output over its own RSS window, the way `calibrate.ts`
 // groups it: each feed's window covers a different slice of the horizon — two
@@ -92,10 +103,12 @@ export interface DivisorSaturation {
   dailyScore: number;
   // What that rate settles at once every day inside the horizon is populated.
   steady: number;
-  // The counter an ordinary week projects to, unclamped — the clamp is the thing
-  // being complained about, so hiding behind it would report 100 for every
-  // reading past the ceiling and say nothing about how far past.
-  projected: number;
+  // What a busy (BUSY_MULTIPLE×) and a crisis (CRISIS_MULTIPLE×) week actually
+  // read through the real, soft-knee formula — not the unclamped straight line
+  // the old check compared to 100. A flag exists precisely because these two
+  // have collapsed together.
+  busy: number;
+  crisis: number;
   sources: number;
 }
 
@@ -128,7 +141,16 @@ export function divisorSaturation(
 
   const dailyScore = rates.reduce((total, r) => total + r.score / r.windowDays, 0);
   const steady = steadySignal(dailyScore, halfLifeDays, horizonDays);
-  if (base + (SATURATION_MULTIPLE * steady) / divisor < CEILING) return null;
+  const busy = counterFrom(BUSY_MULTIPLE * steady, base, divisor);
+  const crisis = counterFrom(CRISIS_MULTIPLE * steady, base, divisor);
 
-  return { divisor, dailyScore, steady, projected: base + steady / divisor, sources: rates.length };
+  // Below the knee both readings sit on the straight line by construction, and
+  // their gap there tracks nothing but how quiet the domain is — a mature but
+  // quiet domain (STU-1217, STU-1219) can land under MIN_HEADROOM on a small
+  // divisor with plenty of ceiling left. Gating on `busy` already having
+  // crossed into the compressed range is what keeps that domain unflagged.
+  if (busy <= HEADROOM_KNEE) return null;
+  if (crisis - busy >= MIN_HEADROOM) return null;
+
+  return { divisor, dailyScore, steady, busy, crisis, sources: rates.length };
 }
