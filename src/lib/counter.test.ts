@@ -2,12 +2,14 @@ import { expect, test } from 'bun:test';
 import {
   BASE,
   HALF_LIFE_DAYS,
+  HEADROOM_KNEE,
   HISTORY_WINDOW_DAYS,
   HORIZON_DAYS,
   counterFrom,
   counterHistory,
   decayedSignal,
   normalizedSignal,
+  signalFor,
   statusLine,
   steadySignal,
   type Sourced,
@@ -82,17 +84,49 @@ test('a steady feed settles at its daily score times the area under the decay', 
   expect(steadySignal(100)).toBeCloseTo(area, -1);
 });
 
-// The trade the provisional bump makes: at the feed set's actual measured
-// rate, an ordinary week is still legible, but a tripled week pegs the gauge
-// instead of leaving room above it. Accepted deliberately
-// on 2026-09-11 — a divisor small enough to hold headroom on an unmeasured
-// guess would have pinned the gauge near 100% for two weeks on an ordinary
-// one, which is the worse failure of the two.
-test('the provisional divisor holds an ordinary week but saturates a tripled one', () => {
+// The provisional divisor holds an ordinary week mid-gauge, below
+// HEADROOM_KNEE, so it still reads exactly as the straight line always did.
+test('the provisional divisor holds an ordinary week mid-gauge', () => {
   const steady = steadySignal(PROVISIONAL_DAILY_SCORE);
   expect(counterAt(steady)).toBeGreaterThan(35);
   expect(counterAt(steady)).toBeLessThan(55);
-  expect(counterAt(3 * steady)).toBe(100);
+});
+
+// The fix itself (STU-1270): above HEADROOM_KNEE a tripled week and a
+// five-times week used to be the same number, 100, because the straight line
+// ran off the end of the gauge. The soft knee keeps them apart and keeps both
+// under the ceiling, so a crisis three times as loud as today still has
+// somewhere left to go if it gets worse.
+test('a tripled week and a five-times week read apart, and neither saturates', () => {
+  const steady = steadySignal(PROVISIONAL_DAILY_SCORE);
+  const tripled = counterAt(3 * steady);
+  const fiveTimes = counterAt(5 * steady);
+  expect(tripled).toBeLessThan(fiveTimes);
+  expect(tripled).toBeLessThan(100);
+  expect(fiveTimes).toBeLessThan(100);
+});
+
+// The knee is a soft one: the compressed branch is built from `100 -
+// HEADROOM_KNEE` precisely so its slope at the boundary matches the linear
+// branch's slope of 1. A kink there would mean a step in dCounter/dSignal
+// exactly at the point most domains' ordinary week sits, which is the reading
+// this whole fix has to keep the most stable.
+test('the transition at HEADROOM_KNEE is continuous and has no kink', () => {
+  const justBelow = counterFrom(HEADROOM_KNEE - 0.01, 0, 1);
+  const at = counterFrom(HEADROOM_KNEE, 0, 1);
+  const justAbove = counterFrom(HEADROOM_KNEE + 0.01, 0, 1);
+  expect(at).toBeCloseTo(HEADROOM_KNEE, 6);
+  expect(justAbove - at).toBeCloseTo(at - justBelow, 2);
+});
+
+// signalFor is counterFrom's inverse on both branches, which is what lets
+// seed.ts pick a daily score from a named band instead of duplicating the
+// compression by hand.
+test('signalFor inverts counterFrom below and above the knee', () => {
+  for (const target of [20, 41, HEADROOM_KNEE, 65, 88]) {
+    const signal = signalFor(target, BASE, DIVISOR);
+    expect(counterAt(signal)).toBeCloseTo(target, 1);
+  }
 });
 
 // `days` of history at PROVISIONAL_DAILY_SCORE points a day, arriving hourly and

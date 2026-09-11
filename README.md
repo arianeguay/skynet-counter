@@ -132,15 +132,21 @@ into approving a score, and a keyword the scorer invented fails on a substring c
 — it recomputes the matches from the domain's own module and never reads the candidate
 list or the weight table `dedupe` handed the scorer.
 
-**The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / DIVISOR`, clamped to 0–100, over
-the last 30 days. `DIVISOR` is the domain's — 32 for cybersecurity — because it is
-calibrated from a feed set's measured score per day. The 7-day half-life is what makes radio silence walk the number back
-down to the floor on its own — there is no separate decay rule to keep in sync.
+**The counter:** `12 + Σ(score × 0.5^(age_days / 7)) / DIVISOR` over the last 30 days,
+below 50. `DIVISOR` is the domain's — calibrated from a feed set's measured score per
+day — because that straight line is what an ordinary week has to land mid-gauge on. The
+7-day half-life is what makes radio silence walk the number back down to the floor on
+its own — there is no separate decay rule to keep in sync.
 
-The divisor is set so the gauge spans the range the feeds actually produce. Measured
-2026-09-01, the feeds publish 97 points of score a day between them, which at a
-7-day half-life settles at a signal of ~930: an ordinary week reads 43, a doubled one
-77, a tripled one pegs at 100, and silence returns to 12.
+Above 50 the line stops being straight (STU-1270). A divisor picked so an ordinary week
+reads mid-gauge leaves the top of the range covering barely more than a doubled week
+before it runs off the end and pegs at 100 — a tripled week and a five-times week both
+read the same number, which is the one thing a gauge cannot afford to do at the loud
+end. Past `HEADROOM_KNEE` (50), the excess is compressed toward 100 by an exponential
+that never quite reaches it, so a crisis three times as loud as normal and one five
+times as loud stay legible as different readings instead of both being "100". The
+compression is built so its slope matches the straight line's exactly at 50 — no visible
+kink where the gauge starts leaning on the brake.
 
 The sum is normalised per source before that division. Each feed's RSS window covers a
 different slice of the 30 days — two days for hnrss, two months for Krebs — so the raw
