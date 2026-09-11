@@ -13,6 +13,12 @@ feeds:
     url: https://webkit.org/feed/
   - source: Mozilla Hacks
     url: https://hacks.mozilla.org/feed/
+  # Added 2026-09-11, unmeasured. The fourth vendor voice alongside web.dev,
+  # Chrome Developers and WebKit, and the one that writes Baseline up as a status
+  # rather than as a launch — which is the availability vocabulary this table is
+  # built on, not the announcement vocabulary it drops.
+  - source: MDN Blog
+    url: https://developer.mozilla.org/en-US/blog/rss.xml
   - source: Smashing Magazine
     url: https://www.smashingmagazine.com/feed/
   - source: CSS-Tricks

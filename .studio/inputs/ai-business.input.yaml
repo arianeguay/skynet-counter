@@ -1,0 +1,36 @@
+# Feeds for the ai-business domain. NOT measured: the sandbox this domain was
+# added from has no egress to the publishers, so none of the five below was
+# fetched, hydrated or scored before shipping — the same position Radio-Canada's
+# fils went in on (STU-1292). A wrong URL does not fail the sweep: `fetch-feed`
+# emits an empty batch with the reason and the source shows up in FeedAlert, so
+# the first sweep on the host is what verifies this list.
+#
+# Two of the five are not filtered on AI at the source, which is why this domain
+# carries a subject list. See `src/lib/domains/ai-business.ts`.
+run: scheduled
+
+feeds:
+  # The two highest-volume sources on the site. Both are a general tech
+  # newsroom's AI category rather than the whole newsroom, so the feed itself
+  # does most of the topical filtering the subject gate would otherwise do.
+  - source: TechCrunch AI
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+  - source: VentureBeat AI
+    url: https://venturebeat.com/category/ai/feed/
+  # Every funding round in every sector, not only AI — the funding wire this
+  # domain's table was picked for, and half the reason the subject gate exists.
+  - source: Crunchbase News
+    url: https://news.crunchbase.com/feed/
+  # Paywalled, and included knowing it. The free intro paragraphs are what
+  # `dedupe` will hydrate and score, so this contributes a strategic read of a
+  # deal rather than the deal's numbers. If the paywall interstitial turns out to
+  # carry no `<p>` at all, the articles are held back rather than scored on the
+  # RSS summary, and the loss shows up in this source's `pages_unread` — which is
+  # the signal to drop it.
+  - source: Stratechery
+    url: https://stratechery.com/feed/
+  # The breadth source, the same role HN plays on three other domains: filtered
+  # on the transaction vocabulary rather than on "AI", so it catches the deal
+  # story the trade press led with a different headline.
+  - source: HN AI funding
+    url: https://hnrss.org/newest?q=%22raises%22+OR+%22funding%22+OR+%22acquires%22+OR+%22valuation%22+OR+%22IPO%22&points=50

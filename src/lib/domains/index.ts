@@ -1,4 +1,5 @@
 import type { Polarity } from '@/lib/counter';
+import { aiBusiness } from './ai-business';
 import { cybersecurite } from './cybersecurite';
 import { environment } from './environment';
 import { frontend } from './frontend';
@@ -55,7 +56,7 @@ export interface Domain {
 // module here: the `fetch` map stage fans out over `input.feeds`, and Studio
 // reads YAML, not TypeScript. A second copy in this directory is the trap
 // STU-1191 already cost a sweep — the feed table stays in one place per domain.
-export const DOMAINS: Domain[] = [cybersecurite, environment, frontend, smarthome];
+export const DOMAINS: Domain[] = [cybersecurite, environment, aiBusiness, frontend, smarthome];
 
 export const DEFAULT_DOMAIN = cybersecurite.slug;
 

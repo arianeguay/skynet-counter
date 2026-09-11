@@ -1,8 +1,8 @@
 # Skynet Counter
 
 A 0–100 gauge of how close the AI news cycle is to sounding like a Skynet origin
-story. A Studio pipeline scrapes four feeds, scores what is new against a closed
-list of weighted keywords, and writes the result to SQLite. The Next.js frontend
+story. A Studio pipeline scrapes one feed list per domain, scores what is new
+against a closed list of weighted keywords, and writes the result to SQLite. The Next.js frontend
 only reads that — it never triggers a run.
 
 ```
@@ -98,7 +98,7 @@ gitignored and exists only on the volume serving it.
 | Path | What it serves |
 |---|---|
 | `/` | redirect to the default domain |
-| `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite`, `/environment`, `/frontend`, `/smarthome` |
+| `/<domain>` | that domain's gauge, status band and signal log — `/cybersecurite`, `/environment`, `/ai-business`, `/frontend`, `/smarthome` |
 | `/ecologie` | permanent redirect to `/environment`, the slug it was renamed from |
 | `/api/skynet` | the default domain's full snapshot as JSON |
 | `/api/skynet/summary` | the default domain's counter, timestamp and band, for the desktop widget |
@@ -122,7 +122,7 @@ domain is measured against itself rather than against the others.
 
 | Stage | Executor | What it does |
 |---|---|---|
-| `fetch` (map over `input.feeds`) | script ×4 | One `fetch-feed` sub-pipeline run per feed — Ars Technica Security, The Hacker News, Krebs on Security, HN. The list lives in `.studio/inputs/<domain>.input.yaml`, so adding a feed is two lines there. A feed that errors emits an empty batch with the reason, so one publisher's 502 does not take the sweep down. |
+| `fetch` (map over `input.feeds`) | script × one per feed | One `fetch-feed` sub-pipeline run per feed — for the cybersecurity domain, Ars Technica Security, The Hacker News, Krebs on Security, BleepingComputer, The Record, Dark Reading and an HN filter. The list lives in `.studio/inputs/<domain>.input.yaml`, so adding a feed is two lines there. A feed that errors emits an empty batch with the reason, so one publisher's 502 does not take the sweep down. |
 | `dedupe` | script | Drops anything already *scored* in SQLite, by URL and by normalized title over the last 100 articles, and carries back any row still unscored from an earlier sweep. Caps the run at 25 articles, the backlog first; what the backlog leaves is shared round-robin across the sources that returned any, so a busy feed cannot crowd out a quiet one. Then reads each surviving article's linked page and scores against that text rather than the RSS summary — after the cap, so a page is fetched once instead of every sweep its item stays in the feed. An article whose page does not answer is held back rather than scored on its feed summary, and is offered again next sweep. Attaches each surviving article's `candidate_keywords` — the literal matches the scorer chooses from — along with the domain's weight table and scoring guidance. |
 | `scoring` (group, 3 iterations) | claude-code + script | `score` keeps or drops each of the article's `candidate_keywords` and sums the weights of the ones it kept; `validate-scores` recomputes every score and checks each claimed keyword literally appears in the article. A keyword that appears literally but names no real risk is dropped on purpose, and the scorer says so in `dropped_keywords` with a reason — an article whose every literal match is left out silently is rejected. A mismatch rejects the group and `score` retries with the issues as feedback. |
 | `aggregate` | script | Persists the scores, recomputes the counter, writes the snapshot. |
@@ -170,7 +170,9 @@ docker compose up -d
 
 The `pipeline` service is the scheduler — there is no cron and no systemd timer. It
 sweeps each domain on its own period, set by `SKYNET_SCHEDULE` as whitespace-separated
-`slug:seconds` pairs (default `cybersecurite:3600`), sharing the `skynet-data` volume
+`slug:seconds` pairs (default `cybersecurite:3600`, every registered domain named —
+`tests/docker/schedule-default.test.ts` fails if one is missing), sharing the
+`skynet-data` volume
 with `web`. A failed sweep logs and waits for that domain's next tick rather than
 taking the container down, and a hung one is cut off at `SWEEP_TIMEOUT` (default 1800s)
 so it cannot hold up another domain's turn.
@@ -342,7 +344,7 @@ desktop widget fetches from a `file://` document and sends `Origin: null`.
 
 `GET /api/skynet/<domain>` and `GET /api/skynet/<domain>/summary` serve those two
 payloads for any slug the registry defines — `/api/skynet/environment`,
-`/api/skynet/smarthome/summary`. The two paths above stay pinned to the default
+`/api/skynet/ai-business/summary`. The two paths above stay pinned to the default
 domain so a bookmark or a widget config does not break; an unregistered slug is a
 404 rather than an empty snapshot, because a counter of 0 with no articles is what a
 quiet week looks like and a domain that does not exist must not be able to publish
@@ -366,22 +368,36 @@ cybersecurity domain's, defined in
 there. `environment` and `frontend` carry their own, in
 [environment.ts](src/lib/domains/environment.ts) and
 [frontend.ts](src/lib/domains/frontend.ts), picked the same way: measuring which
-words mark an *event* rather than the beat. `frontend` also carries
+words mark an *event* rather than the beat. `ai-business` reads the money the same
+way — an acquisition, a term sheet, a compute contract are events; "startup",
+"investor" and "billion" are the beat. `frontend` also carries
 `polarity: 'progress'` — its events are the web platform doing well, not doing harm,
 so its bands and accent read the opposite way (see CLAUDE.md's Polarity section). The
 validator recomputes from each domain's own module; the scorer is handed the same
 table through the `dedupe` stage output, so neither carries a copy of its own.
 
-A domain may also carry a **subject list**, and `environment` does. A keyword table
-measures how bad a story is; it can only do that inside a subject it is allowed to
-assume, and four of that domain's six feeds are general climate press. So an oil
-spill naming an `aquifer`, and farms going under on fuel prices naming the
+`ai-business` is the one table here that was **reasoned rather than measured** —
+the probe needs live feeds and the sandbox it was added from had no egress to them,
+so its weights and its divisor are a first pass to be replaced by
+`bun run calibrate` once it has swept for a couple of weeks. Its one finding worth
+reading anyway: `valuation` cannot be a keyword, because the matcher scans by
+substring and *evaluation* contains it.
+
+A domain may also carry a **subject list**, and `environment` and `ai-business` do.
+A keyword table measures how bad a story is; it can only do that inside a subject it
+is allowed to assume, and four of `environment`'s feeds are general climate press.
+So an oil spill naming an `aquifer`, and farms going under on fuel prices naming the
 `ratepayer` and the `energy demand` behind them, both scored in the twenties on a
 counter whose subject is AI compute. An article naming none of the subject's terms
 now scores nothing, whatever else it contains — applied when the article is scored
 and again when the counter is read, so correcting the list corrects the history with
 it. Domains whose feed list is already the filter carry no subject list and are
-unaffected.
+unaffected. The half of that list that answers "is this about AI at all?" lives
+once, in [ai-subject.ts](src/lib/domains/ai-subject.ts), and both gated domains
+extend it rather than copying it — `environment` adds the physical plant (a campus,
+a GPU, a training run) because a buildout story can name the buildout and never the
+technology; `ai-business` deliberately does not, since a data-centre REIT on the
+funding wire is a real story on the wrong beat.
 
 `environment` is also the first domain reading a second language: Radio-Canada's
 fils environnement and techno, with French mirrors of the keyword table at the same
