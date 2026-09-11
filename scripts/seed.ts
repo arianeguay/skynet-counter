@@ -18,6 +18,7 @@ import {
   HORIZON_DAYS,
   counterFrom,
   normalizedSignal,
+  signalFor,
   statusLine,
   steadySignal,
 } from '@/lib/counter';
@@ -259,12 +260,15 @@ function articleAt(domain: Domain, index: number, source: string, at: number, ta
 }
 
 // The daily score a domain has to publish for its counter to settle at `target`.
-// `steadySignal` inverted through the domain's own divisor rather than a
-// constant worked out here, so the two stay one formula — and so a scenario name
-// means the same band on every domain, which it would not if a domain
-// calibrated at /24 were handed the daily rate that reads 41 at /32.
+// `signalFor` inverted through `steadySignal(1)` rather than a constant worked
+// out here, so the two stay one formula — and so a scenario name means the same
+// band on every domain, which it would not if a domain calibrated at /24 were
+// handed the daily rate that reads 41 at /32. Going through `signalFor` rather
+// than the old straight-line inverse matters above `HEADROOM_KNEE`: `critical`'s
+// target sits in the compressed range, and the linear inverse would undershoot
+// the daily score the fixture actually needs (STU-1270).
 function dailyScoreFor(domain: Domain, target: number): number {
-  return Math.max(0, ((target - BASE) * domain.divisor) / steadySignal(1));
+  return Math.max(0, signalFor(target, BASE, domain.divisor) / steadySignal(1));
 }
 
 function seedDomain(db: ReturnType<typeof openDb>, domain: Domain, scenario: Scenario, bumped: boolean): number {

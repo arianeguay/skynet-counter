@@ -73,8 +73,40 @@ export function normalizedSignal(
   return signal;
 }
 
+// Where the linear read gives way to a soft asymptote (STU-1270). DIVISOR is
+// picked precisely so an ordinary week lands near here — "an ordinary week
+// reads mid-gauge" is the second of STU-1171's four anchor points — so this is
+// the mapping's own shoulder, not a value a domain calibrates.
+//
+// Below it, `counterFrom` is unchanged: BASE plus signal over divisor. Above
+// it, the excess is compressed toward 100 by an exponential that never quite
+// reaches it, so a tripled week and a five-times week stay distinguishable
+// instead of both reading a flat 100. The scale of the compression is `100 -
+// HEADROOM_KNEE` itself, which makes the curve continuous *and* smooth at the
+// knee: the derivative of the compressed branch at the boundary is exactly 1,
+// matching the linear branch's slope, so there is no visible kink where the
+// gauge starts leaning on the brake.
+export const HEADROOM_KNEE = 50;
+
 export function counterFrom(signal: number, base: number, divisor: number): number {
-  return Math.round(Math.min(100, Math.max(0, base + signal / divisor)) * 10) / 10;
+  const linear = base + signal / divisor;
+  if (linear <= HEADROOM_KNEE) return Math.round(Math.max(0, linear) * 10) / 10;
+  const room = 100 - HEADROOM_KNEE;
+  const compressed = 100 - room * Math.exp(-(linear - HEADROOM_KNEE) / room);
+  return Math.round(Math.min(100, compressed) * 10) / 10;
+}
+
+// The inverse of `counterFrom`: the raw signal that reads as `counter` at this
+// base and divisor. `seed.ts` uses it to pick a scenario's daily score from the
+// band it names — inverting the old linear formula by hand would silently
+// undershoot any scenario above `HEADROOM_KNEE`, since the same signal reads
+// lower under the compressed branch than the old straight line assumed.
+export function signalFor(counter: number, base: number, divisor: number): number {
+  const linear =
+    counter <= HEADROOM_KNEE
+      ? counter
+      : HEADROOM_KNEE - (100 - HEADROOM_KNEE) * Math.log((100 - counter) / (100 - HEADROOM_KNEE));
+  return (linear - base) * divisor;
 }
 
 // How far back a domain's own recent history is sampled, for comparing today's
