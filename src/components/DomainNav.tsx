@@ -11,6 +11,8 @@ import { DOMAINS, type Domain } from '@/lib/domains';
 export function DomainNav({ active, domains = DOMAINS }: { active: string; domains?: Domain[] }) {
   if (domains.length < 2) return null;
 
+  const aiidCurrent = active === 'aiid';
+
   return (
     <nav aria-label="Domains" className="mb-8 flex flex-wrap gap-px border border-hairline bg-hairline">
       {domains.map((domain) => {
@@ -28,6 +30,18 @@ export function DomainNav({ active, domains = DOMAINS }: { active: string; domai
           </Link>
         );
       })}
+      {/* Not a gauge, so not driven by the registry: one fixed tab to the
+          absolute-count trend page, appended after the switcher rather than
+          folded into it. */}
+      <Link
+        href="/aiid"
+        aria-current={aiidCurrent ? 'page' : undefined}
+        className={`flex-1 whitespace-nowrap px-4 py-2.5 text-center text-[10px] tracking-[0.25em] transition-colors ${
+          aiidCurrent ? 'bg-panel text-signal' : 'bg-void text-ash hover:text-bone'
+        }`}
+      >
+        AIID TREND
+      </Link>
     </nav>
   );
 }
