@@ -121,8 +121,11 @@ test('is readable cross-origin per domain and never cached', async () => {
 // resolves to the widget's default-serving route and never to `/api/skynet/<slug>`.
 // A domain registered under that slug would be unreachable over the API while its
 // page rendered fine — the same shadow `next.config.test.ts` guards for retired slugs.
+// `aiid` is the same class of shadow one level up: `src/app/aiid/page.tsx` is a
+// static segment too, and a domain registered under it would be unreachable at
+// `/aiid` while `/api/skynet/aiid` still worked.
 test('no domain takes a slug the static API segments already own', () => {
-  const reserved = ['summary'];
+  const reserved = ['summary', 'aiid'];
   expect(DOMAINS.map((d) => d.slug).filter((s) => reserved.includes(s))).toEqual([]);
 });
 

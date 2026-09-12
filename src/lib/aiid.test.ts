@@ -23,6 +23,16 @@ describe('yearlyIncidentCounts', () => {
     expect(yearlyIncidentCounts([{ date: justOutside }], now)).toEqual([{ year: outsideYear, count: 1 }]);
   });
 
+  // A date-only string (what the backfill stores) must compare correctly
+  // against the full-ISO cutoff. A raw string compare would have kept this
+  // row, since '2026-03-11' sorts as "less than" '2026-03-11T14:32:...' only
+  // because it's a shorter prefix of it, not because it's actually earlier.
+  test('a date-only row on the same calendar day as the cutoff is excluded', () => {
+    const cutoffInstant = now - AIID_HOLDBACK_DAYS * 864e5;
+    const sameDayDateOnly = new Date(cutoffInstant + 12 * 3_600_000).toISOString().slice(0, 10);
+    expect(yearlyIncidentCounts([{ date: sameDayDateOnly }], now)).toEqual([]);
+  });
+
   test('empty input yields no years', () => {
     expect(yearlyIncidentCounts([], now)).toEqual([]);
   });
@@ -70,5 +80,15 @@ describe('extractCiteIncidentId', () => {
 
   test('returns null when no citation is present', () => {
     expect(extractCiteIncidentId('No citation here at all.')).toBeNull();
+  });
+
+  // The description can mention a different incident in prose before its own
+  // closing citation; the report belongs to the last one, not the first.
+  test('takes the last citation, not the first, when the description mentions more than one', () => {
+    expect(
+      extractCiteIncidentId(
+        'Similar to the case at (https://incidentdatabase.ai/cite/999#111), this report ... (https://incidentdatabase.ai/cite/1684#7927)'
+      )
+    ).toBe(1684);
   });
 });

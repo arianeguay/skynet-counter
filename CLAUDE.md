@@ -202,9 +202,10 @@ more: an embed cannot navigate the page it sits in, open a window or start a
 download. Those two together are only dangerous on a same-origin frame, and this
 is not one.
 
-[DomainNav](src/components/DomainNav.tsx) is driven by `DOMAINS` and renders nothing
-below two domains, so it stays out of the way until there is something to switch to and
-needs no edit when there is.
+[DomainNav](src/components/DomainNav.tsx) is driven by `DOMAINS` and renders no domain
+tabs below two domains, so the switcher stays out of the way until there is something to
+switch to and needs no edit when there is. The AIID tab (below) is independent of that
+count and always renders.
 
 A slug is a published URL, so renaming one leaves the old path answering: `RETIRED_SLUGS`
 in [next.config.ts](next.config.ts) maps it to the new one as a permanent redirect.

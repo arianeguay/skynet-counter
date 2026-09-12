@@ -6,7 +6,7 @@ export interface RawArticle {
   summary: string;
 }
 
-const TAG = (block: string, name: string): string => {
+export const TAG = (block: string, name: string): string => {
   const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i'));
   return m?.[1] ? decode(m[1]) : '';
 };

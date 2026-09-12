@@ -23,13 +23,16 @@ export interface YearCount {
 }
 
 // Excludes anything inside the holdback window, then groups what remains by
-// year. `date` is an ISO string (`YYYY-MM-DD...`), so its first four characters
-// are the year without needing a full Date parse.
+// year. The backfill's dates are date-only (`YYYY-MM-DD`) and the RSS sync's
+// are full ISO timestamps, so the cutoff compares parsed timestamps rather
+// than raw strings: a date-only string is always lexicographically "less"
+// than a same-day timestamp string (it's a shorter prefix), which silently
+// kept every backfilled row dated exactly on the cutoff day.
 export function yearlyIncidentCounts(rows: Pick<AiidIncident, 'date'>[], now = Date.now()): YearCount[] {
-  const cutoff = new Date(now - AIID_HOLDBACK_DAYS * 864e5).toISOString();
+  const cutoff = now - AIID_HOLDBACK_DAYS * 864e5;
   const counts = new Map<number, number>();
   for (const row of rows) {
-    if (row.date >= cutoff) continue;
+    if (Date.parse(row.date) >= cutoff) continue;
     const year = Number(row.date.slice(0, 4));
     counts.set(year, (counts.get(year) ?? 0) + 1);
   }
@@ -112,9 +115,11 @@ export function parseIncidentsCsv(csv: string): AiidIncident[] {
 }
 
 // AIID's RSS description ends with a citation like
-// `(https://incidentdatabase.ai/cite/1684#7927)`: the incident ID it names,
-// regardless of which of that incident's reports the item itself is about.
+// `(https://incidentdatabase.ai/cite/1684#7927)`, naming the incident this
+// report belongs to. The last `/cite/` link, not the first: the description
+// can mention another incident in prose before that closing citation.
 export function extractCiteIncidentId(text: string): number | null {
-  const m = text.match(/\/cite\/(\d+)/);
-  return m ? Number(m[1]) : null;
+  const matches = [...text.matchAll(/\/cite\/(\d+)/g)];
+  const last = matches.at(-1);
+  return last ? Number(last[1]) : null;
 }

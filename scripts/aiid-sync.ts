@@ -19,18 +19,13 @@
 // so it never surfaces as a number the chart claims is exact.
 import { openDb } from '@/lib/db';
 import { extractCiteIncidentId } from '@/lib/aiid';
-import { USER_AGENT, decode } from '../.studio/scripts/rss';
+import { USER_AGENT, TAG } from '../.studio/scripts/rss';
 
 const RSS_URL = 'https://incidentdatabase.ai/rss.xml';
 
 function die(message: string): never {
   console.error(`aiid-sync: ${message}`);
   process.exit(1);
-}
-
-function tag(block: string, name: string): string {
-  const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i'));
-  return m?.[1] ? decode(m[1]) : '';
 }
 
 interface FeedItem {
@@ -45,9 +40,9 @@ interface FeedItem {
 function parseItems(xml: string): FeedItem[] {
   const blocks = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? [];
   return blocks.map((block) => ({
-    title: tag(block, 'title'),
-    description: tag(block, 'description'),
-    pubDate: tag(block, 'pubDate'),
+    title: TAG(block, 'title'),
+    description: TAG(block, 'description'),
+    pubDate: TAG(block, 'pubDate'),
   }));
 }
 

@@ -22,9 +22,12 @@ const FOUR = [
 ];
 
 // A one-item switcher is noise, and it is the state the site actually ships in
-// until the remaining domains land.
-test('a single domain renders no switcher at all', () => {
-  expect(renderToStaticMarkup(<DomainNav active="cybersecurite" domains={[FOUR[0]!]} />)).toBe('');
+// until the remaining domains land. The AIID tab is independent of the domain
+// count and must still be reachable.
+test('a single domain renders no domain switcher, but still renders the AIID tab', () => {
+  const markup = renderToStaticMarkup(<DomainNav active="cybersecurite" domains={[FOUR[0]!]} />);
+  expect(markup).not.toContain('CYBERSECURITY');
+  expect(markup).toContain('href="/aiid"');
 });
 
 test('every domain in the registry gets a link to its own counter', () => {
