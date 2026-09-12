@@ -32,6 +32,11 @@ FROM base AS pipeline
 # `bun install -g` also drops the executable bit on the CLI's platform binary,
 # so studio would die with EACCES spawning its own baseline build.
 ENV BUN_INSTALL=/usr/local HOME=/home/bun
+# tar is present in the base image but its bzip2 codec is not, so `tar -xjf`
+# on AIID's .tar.bz2 snapshot (scripts/aiid-backfill.ts) dies with "bzip2:
+# Cannot exec" — found running the real backfill against the live deploy.
+RUN apt-get update && apt-get install -y --no-install-recommends bzip2 \
+ && rm -rf /var/lib/apt/lists/*
 RUN bun install -g @studio-foundation/cli@0.19.0 @anthropic-ai/claude-code \
  && chmod +x /usr/local/install/global/node_modules/@studio-foundation/cli-linux-x64*/studio
 COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
