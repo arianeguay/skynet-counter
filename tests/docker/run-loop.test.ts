@@ -8,14 +8,16 @@ const SCRIPT = join(import.meta.dir, '../../docker/run-loop.sh');
 // The loop is driven entirely by `studio run`, so a stub on PATH that records the
 // domain it was called with is enough to watch the schedule without a sweep, a
 // feed or a model anywhere near it.
-function stage({ failing = '' }: { failing?: string } = {}) {
+function stage({ failing = '', aiidInterval = 3600 }: { failing?: string; aiidInterval?: number } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'skynet-loop-'));
   const log = join(dir, 'sweeps.log');
   const marked = join(dir, 'marked.log');
+  const aiidLog = join(dir, 'aiid.log');
   const state = join(dir, 'state');
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   mkdirSync(join(dir, '.studio'));
+  mkdirSync(join(dir, 'scripts'));
   writeFileSync(join(dir, '.studio', 'config.example.yaml'), '');
   // The stub also reports whether the sweep marker was in place while it ran —
   // that is the only moment its presence can be observed, since the loop clears
@@ -25,6 +27,9 @@ function stage({ failing = '' }: { failing?: string } = {}) {
     `#!/bin/sh\necho "$SKYNET_DOMAIN" >> ${log}\n[ -f ${state}/sweeping ] && echo "$SKYNET_DOMAIN" >> ${marked}\n[ "$SKYNET_DOMAIN" = "${failing}" ] && exit 1\nexit 0\n`
   );
   chmodSync(join(bin, 'studio'), 0o755);
+  // A real bun script, invoked the way the loop actually invokes it
+  // (`bun scripts/aiid-sync.ts`), not a stub on PATH.
+  writeFileSync(join(dir, 'scripts', 'aiid-sync.ts'), `console.log("ran"); require("fs").appendFileSync("${aiidLog}", "ran\\n");`);
 
   const run = (schedule: string) =>
     Bun.spawn(['sh', SCRIPT], {
@@ -35,6 +40,7 @@ function stage({ failing = '' }: { failing?: string } = {}) {
         SKYNET_SCHEDULE: schedule,
         SKYNET_STATE_DIR: state,
         MAX_SLEEP: '1',
+        AIID_SYNC_INTERVAL: String(aiidInterval),
       },
       stdout: 'ignore',
       stderr: 'ignore',
@@ -56,9 +62,17 @@ function stage({ failing = '' }: { failing?: string } = {}) {
     }
   };
 
+  const aiidRuns = (): string[] => {
+    try {
+      return readFileSync(aiidLog, 'utf8').split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
   const marker = join(state, 'sweeping');
 
-  return { run, sweeps, markedDuring, marker, state };
+  return { run, sweeps, markedDuring, aiidRuns, marker, state };
 }
 
 // Polls rather than sleeping a fixed span, so a slow machine waits longer instead
@@ -174,4 +188,45 @@ test('a marker left by a killed container is cleared at startup', async () => {
 
   expect(existsSync(marker)).toBe(false);
   expect(sweeps()).toEqual([]);
+});
+
+// The AIID trend page's ingestion runs on its own schedule, independent of the
+// domain sweeps above: a plain script, not a Studio pipeline, and not on the
+// hourly cadence the gauge feeds need.
+test('the AIID sync runs on its own schedule, independent of domain sweeps', async () => {
+  const { run, sweeps, aiidRuns } = stage({ aiidInterval: 1 });
+  const proc = run('slow:3600');
+  try {
+    await until(() => aiidRuns().length >= 2);
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+
+  expect(aiidRuns().length).toBeGreaterThanOrEqual(2);
+  // The domain schedule is untouched: `slow` is due once every hour, so it
+  // sweeps on startup and does not sweep again inside the test's window.
+  expect(sweeps()).toEqual(['slow']);
+});
+
+// A restart must not re-run the sync before its own interval is up, the same
+// property a domain's `.due` file already gives the studio sweeps.
+test('a restart does not re-run the AIID sync before it is due', async () => {
+  const { run, aiidRuns } = stage({ aiidInterval: 3600 });
+
+  const first = run('slow:3600');
+  try {
+    await until(() => aiidRuns().length >= 1);
+  } finally {
+    first.kill();
+    await first.exited;
+  }
+  expect(aiidRuns()).toEqual(['ran']);
+
+  const second = run('slow:3600');
+  await Bun.sleep(1500);
+  second.kill();
+  await second.exited;
+
+  expect(aiidRuns()).toEqual(['ran']);
 });

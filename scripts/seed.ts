@@ -12,6 +12,7 @@
 // draws are one state rather than two.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { AIID_HOLDBACK_DAYS } from '@/lib/aiid';
 import {
   BASE,
   HALF_LIFE_DAYS,
@@ -42,6 +43,9 @@ interface Scenario {
   // Multiply the last two days' scores for the domain being run, so its own
   // trajectory reads as an unusual week rather than a flat line.
   bump?: number;
+  // Seeds `aiid_incidents` instead of any domain's articles: the AIID trend
+  // page is not a gauge and has nothing to do with `target`/`feeds`/`bump`.
+  aiid?: boolean;
 }
 
 const SCENARIOS: Record<string, Scenario> = {
@@ -84,6 +88,10 @@ const SCENARIOS: Record<string, Scenario> = {
   },
   empty: {
     what: 'the schema and nothing else — the log’s empty state, a gauge at zero',
+  },
+  aiid: {
+    what: 'a rising multi-year trend on the AIID page, with recent months held back',
+    aiid: true,
   },
 };
 
@@ -388,6 +396,51 @@ function errorFor(feeds: NonNullable<Scenario['feeds']>, source: string, n: numb
   return null;
 }
 
+// How many years of rising trend to seed, and the growth rate between them:
+// AIID's real history roughly doubles every few years, and a flat line would
+// say nothing about a page built specifically to show that kind of growth.
+const AIID_YEARS_BACK = 8;
+const AIID_GROWTH = 1.35;
+const AIID_BASE_COUNT = 8;
+// How many incidents to seed inside the trailing holdback window, so the
+// fixture also proves the page holds them back rather than reading the
+// current window as a real slowdown.
+const AIID_RECENT_COUNT = 3;
+
+function seedAiid(db: ReturnType<typeof openDb>): number {
+  const currentYear = new Date().getUTCFullYear();
+  const insert = db.prepare(
+    'INSERT INTO aiid_incidents (incident_id, date, title, ingested_at) VALUES (?, ?, ?, ?)'
+  );
+  const ingestedAt = new Date().toISOString();
+  let incidentId = 1;
+  let written = 0;
+
+  db.transaction(() => {
+    for (let yearsAgo = AIID_YEARS_BACK; yearsAgo >= 0; yearsAgo--) {
+      const year = currentYear - yearsAgo;
+      const count = Math.round(AIID_BASE_COUNT * AIID_GROWTH ** (AIID_YEARS_BACK - yearsAgo));
+      for (let i = 0; i < count; i++) {
+        const dayOfYear = Math.floor((i / count) * 350) + 1;
+        const date = new Date(Date.UTC(year, 0, dayOfYear)).toISOString();
+        insert.run(incidentId, date, `Seeded AIID incident ${incidentId}`, ingestedAt);
+        incidentId++;
+        written++;
+      }
+    }
+
+    for (let i = 0; i < AIID_RECENT_COUNT; i++) {
+      const daysAgo = Math.floor((AIID_HOLDBACK_DAYS / (AIID_RECENT_COUNT + 1)) * i);
+      const date = new Date(Date.now() - daysAgo * 864e5).toISOString();
+      insert.run(incidentId, date, `Seeded recent AIID incident ${incidentId}`, ingestedAt);
+      incidentId++;
+      written++;
+    }
+  })();
+
+  return written;
+}
+
 const name = process.argv[2];
 const scenario = name ? SCENARIOS[name] : undefined;
 if (!scenario) {
@@ -411,25 +464,33 @@ const db = openDb();
 // one left: a page state is the whole page, and the balance band and the nav
 // read every domain in the registry, not the one being seeded.
 db.transaction(() => {
-  for (const table of ['articles', 'feed_sweeps', 'unread_pages', 'counter']) {
+  for (const table of ['articles', 'feed_sweeps', 'unread_pages', 'counter', 'aiid_incidents']) {
     db.query(`DELETE FROM ${table}`).run();
   }
 })();
 
-const targets = scenario.everyDomain ? DOMAINS : [domain];
-let written = 0;
-for (const target of targets) written += seedDomain(db, target, scenario, target.slug === domain.slug);
-const counter = db
-  .query<{ value: number }, [string]>('SELECT value FROM counter WHERE domain = ?')
-  .get(domain.slug);
-db.close();
-
 console.log(`scenario   ${name} — ${scenario.what}`);
-console.log(`domain     ${domain.slug} (${domain.label})${targets.length > 1 ? `, and ${targets.length - 1} more` : ''}`);
-console.log(`wrote      ${path} — ${written} articles over ${SPAN_DAYS} days`);
-console.log(
-  counter
-    ? `counter    ${counter.value.toFixed(1)}  ${statusLine(counter.value, domain.polarity)}`
-    : 'counter    no row — the page reads 0'
-);
-console.log(`\n  SKYNET_DB=${path} bun run dev\n`);
+
+if (scenario.aiid) {
+  const written = seedAiid(db);
+  db.close();
+  console.log(`wrote      ${path}: ${written} AIID incidents`);
+  console.log(`\n  SKYNET_DB=${path} bun run dev\n  then open /aiid\n`);
+} else {
+  const targets = scenario.everyDomain ? DOMAINS : [domain];
+  let written = 0;
+  for (const target of targets) written += seedDomain(db, target, scenario, target.slug === domain.slug);
+  const counter = db
+    .query<{ value: number }, [string]>('SELECT value FROM counter WHERE domain = ?')
+    .get(domain.slug);
+  db.close();
+
+  console.log(`domain     ${domain.slug} (${domain.label})${targets.length > 1 ? `, and ${targets.length - 1} more` : ''}`);
+  console.log(`wrote      ${path} — ${written} articles over ${SPAN_DAYS} days`);
+  console.log(
+    counter
+      ? `counter    ${counter.value.toFixed(1)}  ${statusLine(counter.value, domain.polarity)}`
+      : 'counter    no row — the page reads 0'
+  );
+  console.log(`\n  SKYNET_DB=${path} bun run dev\n`);
+}

@@ -202,9 +202,10 @@ more: an embed cannot navigate the page it sits in, open a window or start a
 download. Those two together are only dangerous on a same-origin frame, and this
 is not one.
 
-[DomainNav](src/components/DomainNav.tsx) is driven by `DOMAINS` and renders nothing
-below two domains, so it stays out of the way until there is something to switch to and
-needs no edit when there is.
+[DomainNav](src/components/DomainNav.tsx) is driven by `DOMAINS` and renders no domain
+tabs below two domains, so the switcher stays out of the way until there is something to
+switch to and needs no edit when there is. The AIID tab (below) is independent of that
+count and always renders.
 
 A slug is a published URL, so renaming one leaves the old path answering: `RETIRED_SLUGS`
 in [next.config.ts](next.config.ts) maps it to the new one as a permanent redirect.
@@ -718,6 +719,80 @@ Changing a keyword, a weight or a subject term means editing, in this order:
 
 A subject list is not a keyword table with the weights left off; the two want
 opposite properties. See "The subject gate" above before adding to either.
+
+## The AIID trend page
+
+[/aiid](src/app/aiid/page.tsx) is not a domain. It has no gauge, no keyword table,
+no divisor, no 0-100 range: it plots the [AI Incident Database](https://incidentdatabase.ai)'s
+yearly count of reported AI incidents as a raw bar per year (STU-1399). The five
+gauges are relative-anomaly detectors, calibrated against their own recent feed
+history; a genuine multi-year structural trend does not show up on any of them,
+however loud it gets, because the divisor always recalibrates back to the same
+relative range.
+
+`aiid_incidents` (`src/lib/db.ts`) is its own table, not domain-partitioned: one
+instance total, keyed on AIID's own `incident_id`. Two ingestion mechanisms, both
+outside the hourly `fetch`/`dedupe`/`score`/`aggregate` pattern, because there is
+nothing to score here:
+
+- **Backfill (one-time, by hand):** `scripts/aiid-backfill.ts`, run via
+  `make backfill-aiid`. AIID publishes a weekly point-in-time snapshot at
+  [incidentdatabase.ai/research/snapshots](https://incidentdatabase.ai/research/snapshots)
+  as a `backup-<14-digit timestamp>.tar.bz2` archive; the timestamp sorts
+  correctly as a plain string, so picking the newest link needs no date parsing.
+  `mongodump_full_snapshot/incidents.csv` inside it carries the incident's own
+  `date` field (not a report date), extracted with `tar -xjf <archive> -O
+  <path>` rather than unpacking the whole 100+ MB archive (which also holds a
+  full mongodump) to disk. Every row is upserted on `incident_id`, so a rerun
+  refreshes AIID's own corrections rather than duplicating rows.
+- **Sync (ongoing, weekly):** `scripts/aiid-sync.ts`, run by
+  [docker/run-loop.sh](docker/run-loop.sh) on its own schedule
+  (`AIID_SYNC_INTERVAL`, default 604800s), sharing that loop's existing
+  due-file bookkeeping without going through `studio run`: it is a plain
+  script, not a Studio pipeline stage. AIID's GraphQL API is origin-gated, so
+  this reads their public RSS feed instead: one item per *report*, not per
+  incident, and a single incident can gain several reports in one poll (three
+  items citing the same incident were live in the feed while this was built).
+  Each item's `<description>` ends with a citation like
+  `(https://incidentdatabase.ai/cite/1684#7927)`; it's the incident id in that
+  citation, not the RSS item itself, that decides whether a row is new.
+  `extractCiteIncidentId()` and `yearlyIncidentCounts()` live in
+  [src/lib/aiid.ts](src/lib/aiid.ts), pure and unit-tested, so the parsing and
+  the year bucketing are provable without a network call.
+
+**Two bugs only showed up running this against the real site, never in a unit
+test.** The URL-matching regex passed a small fixture instantly but backtracked
+quadratically over the real snapshots page's actual size, burning minutes of CPU
+with nothing written to disk before it was caught. And `Bun.write(path,
+response)`, handing `Bun.write` a fetch `Response` directly, hung indefinitely
+against the real 111 MB archive on the Bun version this shipped on (1.3.14),
+despite working against smaller bodies; buffering the response with
+`await res.arrayBuffer()` first fixed it, and the same 111 MB file then writes in
+under 4 seconds. Both are why `scripts/aiid-backfill.ts` and `scripts/aiid-sync.ts`
+were run live against the real site, twice each for idempotency, rather than only
+typechecked and unit-tested: this is exactly the class of bug a fixture cannot
+catch, because a fixture is never as big or as real as the thing it stands in for.
+
+**A newly-discovered incident is dated by the report that surfaced it, not
+AIID's own incident date**: that field is unreachable from RSS without the
+gated GraphQL API or a second page fetch per incident. This only affects
+incidents first seen between sync runs; everything the backfill loads keeps
+its exact date. The trailing holdback window below absorbs the difference, so
+it never surfaces as a number the chart claims is exact.
+
+**The trailing `AIID_HOLDBACK_DAYS` (183, roughly six months) are always excluded
+from the chart**, the same shape as `HORIZON_DAYS` elsewhere in this codebase but
+for the opposite reason: AIID backfills past years continuously as reports come
+in, so the most recent stretch always reads artificially low while that backfill
+is ongoing: not because incidents stopped, but because reporting on them hasn't
+caught up yet. `yearlyIncidentCounts()` applies the cutoff on read, the same
+reason `counterHistory` recomputes rather than storing a daily snapshot: a
+correction to the window corrects every past reading at once.
+
+[DomainNav](src/components/DomainNav.tsx) gets one fixed tab to `/aiid`, appended
+after the registry-driven domain switcher rather than folded into it: this page
+is not in `DOMAINS` and never will be, so nothing about it belongs in that
+registry's iteration.
 
 ## The database
 

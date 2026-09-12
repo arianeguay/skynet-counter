@@ -22,9 +22,12 @@ const FOUR = [
 ];
 
 // A one-item switcher is noise, and it is the state the site actually ships in
-// until the remaining domains land.
-test('a single domain renders no switcher at all', () => {
-  expect(renderToStaticMarkup(<DomainNav active="cybersecurite" domains={[FOUR[0]!]} />)).toBe('');
+// until the remaining domains land. The AIID tab is independent of the domain
+// count and must still be reachable.
+test('a single domain renders no domain switcher, but still renders the AIID tab', () => {
+  const markup = renderToStaticMarkup(<DomainNav active="cybersecurite" domains={[FOUR[0]!]} />);
+  expect(markup).not.toContain('CYBERSECURITY');
+  expect(markup).toContain('href="/aiid"');
 });
 
 test('every domain in the registry gets a link to its own counter', () => {
@@ -54,4 +57,20 @@ test('the switcher is driven by the registry, not a hardcoded list', () => {
   expect(two).toContain('HOME AUTOMATION');
   expect(two).not.toContain('ENVIRONMENT');
   expect(two).not.toContain('DESIGN');
+});
+
+// Not a gauge, so not part of the registry-driven switcher, but still reachable
+// from the same nav.
+test('a fixed tab always links to the AIID trend page', () => {
+  const markup = renderToStaticMarkup(<DomainNav active="cybersecurite" domains={FOUR} />);
+  expect(markup).toContain('href="/aiid"');
+  expect(markup).toContain('AIID TREND');
+});
+
+test('the AIID tab is marked current on its own page, and no domain tab is', () => {
+  const markup = renderToStaticMarkup(<DomainNav active="aiid" domains={FOUR} />);
+  const current = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)];
+
+  expect(current).toHaveLength(1);
+  expect(current[0]![0]).toContain('href="/aiid"');
 });
