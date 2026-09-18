@@ -111,9 +111,12 @@ export function CounterHero({
       </header>
 
       <section ref={hero} className="vignette flex flex-col items-center gap-6 border border-hairline bg-panel/40 px-6 py-14">
-        {/* The eyebrow and the question are one unit at a tighter gap than the
-            section's own, so the label reads as a kicker on the line below it
-            rather than as a third element floating above the gauge. */}
+        {/* The eyebrow, the question and the tagline are one block at a tighter
+            gap than the section's own: the label is a kicker on the question and
+            the tagline is its gloss, so all three read as the heading rather than
+            as three things stacked above the gauge. The section's `gap-6` then
+            separates that block from the gauge, which is the only break that
+            should be visible. */}
         <div className="flex flex-col items-center gap-2">
           <p className="text-center text-xs tracking-[0.4em] text-ash">
             SKYNET COUNTER <span className="text-hairline">/</span>{' '}
@@ -128,11 +131,11 @@ export function CounterHero({
             {/* inline-block: a bare inline span ignores the animation's transform. */}
             <span className={`inline-block ${glitching ? effect : ''}`}>{question.subject}</span>?
           </p>
+          {/* text-balance so a tagline that does wrap splits evenly instead of
+              dropping a single orphaned word onto the second line. The length bar
+              in `Domain.tagline` is the fix; this is the backstop. */}
+          <p className="max-w-md text-balance text-center text-xs text-ash">{tagline}</p>
         </div>
-        {/* text-balance so a tagline that does wrap splits evenly instead of
-            dropping a single orphaned word onto the second line. The length bar
-            in `Domain.tagline` is the fix; this is the backstop. */}
-        <p className="max-w-md text-balance text-center text-xs text-ash">{tagline}</p>
         <Gauge value={counter} />
         <TrendSparkline history={history} />
         <GlitchNumber value={counter} glitching={glitching} effect={effect} />
