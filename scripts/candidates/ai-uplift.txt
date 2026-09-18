@@ -1,0 +1,43 @@
+# Candidate vocabulary for offensive-capability uplift — "the cost of turning a
+# bug into a working exploit collapsed", which `cybersecurite`'s table has no
+# entry for. Its four heaviest keywords name a system losing control of itself
+# (`loss of control`, `self-replicating`, `self-improving`, `shutdown
+# resistance`); none of them name a human using a model to do in 72 hours what
+# used to take a team.
+#
+# Nothing here is a proposal. STU-1219 is the reason: on a beat where every
+# article is about AI, `ai-generated` and `agentic` carry subject matter and no
+# severity at all, and the same trap is waiting for half this list. Run the probe
+# and read two columns — `share` says whether the term marks a story or the beat,
+# `rescues` says whether it reaches articles the table currently scores at zero.
+# A term that only lands on articles already scoring is not worth a weight.
+#
+#   SKYNET_DOMAIN=cybersecurite bun run probe -- --candidates scripts/candidates/ai-uplift.txt
+
+# The act, not the actor. These name something that happened to a bug.
+exploit chain
+weaponiz
+proof of concept
+working exploit
+chained together
+novel exploit
+
+# Who or what did it. Expect several of these to come back BEAT — that is the
+# measurement doing its job, not a reason to skip them.
+ai assisted
+ai generated
+ai discovered
+agent found
+fully automated
+without human
+autonomous exploitation
+llm agent
+
+# The claim the story is actually making, in the words the press uses for it.
+capability uplift
+lowers the bar
+lowered the bar
+time to exploit
+vibe hacking
+offensive security
+bug bounty

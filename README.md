@@ -173,6 +173,33 @@ week no longer leaves room for one half again as busy — the failure that pegge
 cybersecurity at 94.6 the day three feeds were added to it. It only ever complains in
 that direction: a domain reading near the floor is a quiet beat, not a bad constant.
 
+## Probing a keyword table
+
+`bun run probe` is the other measurement, and the one a table is picked by. It counts,
+over a domain's stored corpus, how many articles each keyword actually lands in — the
+scan that threw `data center` out of the environment table for firing on nearly every
+article on the beat, and that found thirteen of fifteen candidate domotique keywords
+firing on none. A term at 40% or more is measuring the beat rather than the story; a
+term at zero is dead weight.
+
+```bash
+SKYNET_DOMAIN=cybersecurite bun run probe
+SKYNET_DOMAIN=cybersecurite bun run probe -- --candidates scripts/candidates/ai-uplift.txt
+SKYNET_DOMAIN=environment   bun run probe -- --days 30 'heat pump'
+```
+
+Terms given as arguments are measured beside the live table without being in it, so a
+proposed keyword is a number before it is a commit. Two columns decide it: `share`, for
+whether the term marks a story or the beat, and `rescues`, for how many of its hits are
+on articles the table currently scores at zero — a term that only lands on articles
+already scoring adds weight rather than reach. It also names any existing keyword a
+candidate contains or is contained by, since the matcher scans by substring and such a
+pair pays twice on one article.
+
+Like `calibrate`, it reads and never writes, takes `SKYNET_DB`, and wants a real corpus:
+against a freshly seeded database every keyword lands on a fifth of the rows and every
+candidate reads dead, because the fixtures are synthesised from the table itself.
+
 ## AIID trend page
 
 `/aiid` is not a gauge: no divisor, no keyword scoring, no 0-100 range. It plots the
