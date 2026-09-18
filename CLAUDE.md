@@ -302,6 +302,33 @@ hit counts. A keyword firing on 40%+ of articles is measuring the beat. A keywor
 firing zero times is dead weight, and a table of those is a counter stuck at its
 floor.
 
+`bun run probe` ([scripts/keyword-probe.ts](scripts/keyword-probe.ts)) is that probe
+over the **stored** corpus, which is where it belongs once a domain is sweeping: the
+rows are already hydrated the way `dedupe` hydrates them, so the measurement needs no
+egress and re-reads the same text the scorer saw. The counting is a pure function in
+[keyword-probe.ts](src/lib/keyword-probe.ts) rather than in the script, for the reason
+the counter formula is not in `aggregate.ts` — the script needs a database and the
+proof does not. Terms passed as arguments are measured beside the table without being
+in it, so a proposed entry is a number before it is a commit; `rescues` is the column
+that decides one, since a term landing only on articles that already score adds weight
+rather than reach. Reaching for live feeds is still the right probe for a domain or a
+feed that does not exist yet — there is no stored corpus to read for either.
+
+The probe is `claude:web`-provable and `claude:local` to *run*: the corpus it wants
+exists only on the host, so the script's behaviour is settled by
+[tests/studio/keyword-probe.test.ts](tests/studio/keyword-probe.test.ts) against a
+scratch database, and its numbers are settled by apollon.
+
+**The table can have a hole no keyword in it names.** A probe reads the entries it is
+given; it cannot report a story shape the vocabulary never had. `cybersecurite`'s four
+heaviest entries all name a system losing control of itself, and nothing in it names
+the cost of offensive capability falling — a team chaining a heap overflow to an SSO
+flaw in 72 hours with a model doing the weaponising scores as an ordinary RCE story.
+[scripts/candidates/ai-uplift.txt](scripts/candidates/ai-uplift.txt) is that hypothesis
+as a candidate list, unmeasured, to be run through the probe rather than adopted: the
+trap waiting for half of it is STU-1219's, where on a beat that is entirely about AI a
+term like `ai-generated` carries subject matter and no severity at all.
+
 ### A domain can carry more than one language
 
 `environment` does, since Radio-Canada's fils environnement and techno were added
