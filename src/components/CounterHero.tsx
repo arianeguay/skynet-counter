@@ -111,15 +111,24 @@ export function CounterHero({
       </header>
 
       <section ref={hero} className="vignette flex flex-col items-center gap-6 border border-hairline bg-panel/40 px-6 py-14">
-        <p className="text-xs tracking-[0.4em] text-ash">
-          SKYNET COUNTER <span className="text-hairline">/</span>{' '}
-          <span className="text-bone">{label.toUpperCase()}</span>
-        </p>
-        <p className="text-sm tracking-[0.25em] text-signal">
-          {question.prefix}{' '}
-          {/* inline-block: a bare inline span ignores the animation's transform. */}
-          <span className={`inline-block ${glitching ? effect : ''}`}>{question.subject}</span>?
-        </p>
+        {/* The eyebrow and the question are one unit at a tighter gap than the
+            section's own, so the label reads as a kicker on the line below it
+            rather than as a third element floating above the gauge. */}
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-center text-xs tracking-[0.4em] text-ash">
+            SKYNET COUNTER <span className="text-hairline">/</span>{' '}
+            {/* nowrap on the label alone: a two-word label breaking between its
+                own words reads as two labels. The line before it can still
+                break, so the whole thing wraps as "SKYNET COUNTER /" then the
+                label — which is where a phone puts it. */}
+            <span className="whitespace-nowrap text-bone">{label.toUpperCase()}</span>
+          </p>
+          <p className="text-center text-sm tracking-[0.25em] text-signal">
+            {question.prefix}{' '}
+            {/* inline-block: a bare inline span ignores the animation's transform. */}
+            <span className={`inline-block ${glitching ? effect : ''}`}>{question.subject}</span>?
+          </p>
+        </div>
         {/* text-balance so a tagline that does wrap splits evenly instead of
             dropping a single orphaned word onto the second line. The length bar
             in `Domain.tagline` is the fix; this is the backstop. */}
