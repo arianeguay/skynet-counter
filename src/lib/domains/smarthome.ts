@@ -24,9 +24,13 @@ import type { Domain } from './index';
 export const smarthome: Domain = {
   slug: 'smarthome',
   label: 'Smart Home',
-  tagline: 'Devices getting free of the cloud they shipped bundled with',
+  tagline: 'Devices getting free of the cloud they shipped with',
   polarity: 'progress',
-  question: { prefix: 'How close are we to', subject: 'The Great Decoupling' },
+  // "The Great Decoupling" without the adjective: that phrase is already a
+  // coinage in economics (productivity against wages) and geopolitics, and
+  // dropping it also puts this subject in the one-noun shape the other four
+  // have.
+  question: { prefix: 'How close are we to', subject: 'The Decoupling' },
   // Re-run 2026-09-11 against a mature corpus (29.6 days of history): the real
   // rate is 3.0 points of score a day, projecting to a steady signal of ~29 —
   // at /4, an ordinary week reads 19.3 and a tripled one 33.8. Genuinely low

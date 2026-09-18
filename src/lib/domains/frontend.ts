@@ -12,7 +12,7 @@ import type { Domain } from './index';
 export const frontend: Domain = {
   slug: 'frontend',
   label: 'Front-end',
-  tagline: 'Capabilities landing in every browser, not just the newest one',
+  tagline: 'Capabilities landing in every browser, not just the newest',
   polarity: 'progress',
   question: { prefix: 'How close are we to', subject: 'The Convergence' },
   // Re-run 2026-09-11 against a mature corpus (29.3 days of history, every feed
