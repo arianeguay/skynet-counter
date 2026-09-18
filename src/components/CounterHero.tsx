@@ -120,7 +120,10 @@ export function CounterHero({
           {/* inline-block: a bare inline span ignores the animation's transform. */}
           <span className={`inline-block ${glitching ? effect : ''}`}>{question.subject}</span>?
         </p>
-        <p className="max-w-md text-center text-xs text-ash">{tagline}</p>
+        {/* text-balance so a tagline that does wrap splits evenly instead of
+            dropping a single orphaned word onto the second line. The length bar
+            in `Domain.tagline` is the fix; this is the backstop. */}
+        <p className="max-w-md text-balance text-center text-xs text-ash">{tagline}</p>
         <Gauge value={counter} />
         <TrendSparkline history={history} />
         <GlitchNumber value={counter} glitching={glitching} effect={effect} />

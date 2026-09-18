@@ -6,7 +6,7 @@ import type { Domain } from './index';
 export const cybersecurite: Domain = {
   slug: 'cybersecurite',
   label: 'Cybersecurity',
-  tagline: 'AI-driven compromise, autonomy and loss of control',
+  tagline: 'Systems getting breached, and systems acting on their own',
   // Calibrated 2026-09-01 by `bun run calibrate` against the live corpus, whose
   // feeds publish 97 points of score a day between them. At a 7-day half-life
   // that settles at a steady signal of ~930, so /32 reads 41 on an ordinary week,
@@ -28,6 +28,13 @@ export const cybersecurite: Domain = {
   // window comparable to Dark Reading's (13.2 days measured 2026-09-11), and
   // replace this with a real number.
   polarity: 'risk',
+  // Earned by the table rather than by the site's name. Its four heaviest
+  // entries are `loss of control`, `self-replicating`, `self-improving` and
+  // `shutdown resistance` (15/15/15/14) while ordinary incident vocabulary sits
+  // at the floor — `breach` 5, `ransomware` 6, `account takeover` 4. So this is
+  // a loss-of-control counter that uses security press as its feed set, because
+  // that press is the only one publishing those events as events; "someone got
+  // hacked" barely moves the needle by design.
   question: { prefix: 'How close are we to', subject: 'The Singularity' },
   divisor: 64,
   keywords: {

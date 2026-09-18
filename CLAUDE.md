@@ -491,6 +491,43 @@ Reach for `getAnimations()[0].pause(); anim.currentTime = <ms>` when checking ei
 effect in a browser — a screenshot taken on a guessed delay lands past the window,
 paused-and-seeked does not.
 
+### The hero line, and the slot the animation lands in
+
+`CounterHero` draws each domain's `question` as one sentence with one animated
+element: `{prefix} <glitch|glow>{subject}</glitch|glow>?`. The slot is **terminal by
+construction**, so the sentence has to be written around it rather than the other way
+round.
+
+Every domain therefore shares the prefix `How close are we to` and differs only in
+`subject`, which names **an arrival this domain can approach** — one capitalised noun,
+`The X`. Two domains used to break that and the animation is what exposed both:
+`environment` read "What is the machine drinking?", which glitched a verb while the
+actual subject sat stranded in the prefix, and `ai-business` read "Who is funding The
+Machine?" — an entity, and nothing is ever *close to* a machine. The subject also
+carries no valence of its own, because `.polarity-progress` is what paints it red or
+green; "The Singularity" is dreaded and "The Convergence" is wished for, and the
+identical sentence carries both.
+
+The word is picked against what the domain's table actually measures, not its vibe.
+`cybersecurite` keeps `The Singularity` because its four heaviest keywords are `loss of
+control`, `self-replicating`, `self-improving` and `shutdown resistance` (15/15/15/14)
+while ordinary incident vocabulary sits at the floor — it is a loss-of-control counter
+that uses security press as its feed set. `ai-business` is `The Takeover` and
+deliberately not `The Bubble`, which would name the pop the table does not score.
+`environment` is `The Brownout` and deliberately not `The Drawdown`, a term Hawken's
+*Drawdown* made mean the opposite in climate writing.
+
+There is no site-wide Singularity gauge and there should not be one: summing or
+subtracting counters across divisors is the error "The balance band" below exists to
+refuse, and the band is a comparison rather than a level.
+
+`tagline` sits under that line in a fixed `max-w-md` column and is capped at **58
+characters**. `ai-business` and `environment` both ran to 68 and wrapped to a second
+line holding one orphaned word. `text-balance` on that paragraph is the backstop, not
+the licence — it splits a long tagline evenly, it does not stop the wrap.
+[index.test.ts](src/lib/domains/index.test.ts) holds the prefix, the subject shape,
+their uniqueness and that cap, because no per-domain test can see the registry.
+
 ### The balance band, and the trap it exists to avoid
 
 Once domains point both ways, the site needs to say which side is winning — and the

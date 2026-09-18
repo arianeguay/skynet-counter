@@ -11,7 +11,11 @@ export interface Domain {
   // between the sweep that writes a row and the page that reads it.
   slug: string;
   label: string;
-  // What this counter counts, printed under the gauge.
+  // What this counter counts, printed under the gauge. Keep it at or under ~58
+  // characters: the hero draws it in a fixed `max-w-md` column, and the two that
+  // had run to 68 wrapped to a second line holding a single orphaned word. The
+  // `text-balance` on that paragraph is the backstop rather than the licence —
+  // it splits a long tagline evenly, it does not stop the wrap.
   tagline: string;
   keywords: Record<string, number>;
   // What the counter is about, as opposed to what goes wrong inside it. A
@@ -29,8 +33,21 @@ export interface Domain {
   // progress one (STU-1279). It decides the bands and the accent colour, nothing
   // in the arithmetic.
   polarity: Polarity;
-  // The line under the title. It is per domain because "How close are we to The
-  // Singularity?" is the wrong question over a gauge where high is good.
+  // The line under the title, and one of the two things the glitch/glow beat
+  // animates: `CounterHero` renders `{prefix} <effect>{subject}</effect>?`, so
+  // `subject` is the animated slot and it is terminal by construction.
+  //
+  // Every domain shares the prefix and differs only in the subject, which has to
+  // name *an arrival this domain can approach*. That is a rule about the word
+  // rather than a house style. `environment` read "What is the machine
+  // drinking?", which animated a verb while the real subject sat stranded in the
+  // prefix, and `ai-business` read "Who is funding The Machine?" — an entity,
+  // and nothing is ever close to a machine. The animation is what made both
+  // obvious: it lands on whatever is in the slot, correct or not.
+  //
+  // The subject also carries no valence of its own, because the polarity class
+  // is what paints it red or green. "The Singularity" is dreaded and "The
+  // Convergence" is wished for, and the identical sentence carries both.
   question: { prefix: string; subject: string };
   // A live panel from somewhere else, drawn under the counter. Optional, and one
   // per domain at most: it is context for the gauge, not a second gauge.

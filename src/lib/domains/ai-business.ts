@@ -19,7 +19,7 @@ import type { Domain } from './index';
 export const aiBusiness: Domain = {
   slug: 'ai-business',
   label: 'AI Business',
-  tagline: 'The capital, the deals and the compute contracts piling up behind AI',
+  tagline: 'Capital and compute contracts piling up behind AI',
   // Risk, not progress, and the choice decides what rule 2 means for every
   // article. `frontend` and `smarthome` are progress domains because their
   // events are the platform doing well; money concentrating behind AI is the
@@ -28,7 +28,13 @@ export const aiBusiness: Domain = {
   // the table would have to be rebuilt with it, since these keywords name the
   // pile growing rather than the market re-pricing it.
   polarity: 'risk',
-  question: { prefix: 'Who is funding', subject: 'The Machine' },
+  // The pile winning, which is the direction the `polarity` note above points
+  // the whole table — `acquisition` is its heaviest entry at 14. "The Bubble"
+  // was the obvious alternative and is excluded for that same reason: it names
+  // the pop, the one thing this domain deliberately does not score. The line
+  // this replaces asked "Who is funding The Machine?", and nothing is ever
+  // *close to* a machine; the shared shape needs an arrival, not an entity.
+  question: { prefix: 'How close are we to', subject: 'The Takeover' },
   // Unmeasured, and deliberately biased high. The failure that matters is the
   // one STU-1171 records — a divisor too small pegs the gauge at 100 and never
   // comes back down — and this feed set is the highest-volume on the site by a

@@ -13,7 +13,9 @@ import type { Domain } from './index';
 export const environment: Domain = {
   slug: 'environment',
   label: 'Environment',
-  tagline: 'What AI compute is taking from the grid, the air and the water table',
+  // No third axis: STU-1218 threw `emissions` out of the table on purpose, so a
+  // tagline naming the air promised something this counter does not measure.
+  tagline: 'AI compute pulling on the grid and the water table',
   // Calibrated 2026-09-11 (STU-1275) by `bun run calibrate` against the live,
   // gated corpus — replacing the 2026-09-02 guess above, which was picked from
   // Data Center Dynamics's rate off a one-day RSS window, exactly the STU-1171
@@ -30,7 +32,18 @@ export const environment: Domain = {
   // negligible (0.29 articles/day) so it cannot move this number much either
   // way, but re-run calibrate once it matures rather than treating /8 as final.
   polarity: 'risk',
-  question: { prefix: 'What is the machine', subject: 'drinking' },
+  // Named for what the keyword table actually measures — `energy demand`,
+  // `grid strain`, `gas turbine`, `ratepayer`, and `delestage` on the French
+  // side, which *is* load shedding. A brownout is the arrival those words
+  // describe approaching, which is what the shared sentence shape asks of a
+  // subject (see `index.ts`); the line this replaces put a verb in the glitch
+  // slot and stranded the actual subject in the prefix.
+  //
+  // It buys that literalness by naming only the grid half of the tagline. The
+  // candidate that covered the water too, "The Drawdown", is a term Hawken's
+  // *Drawdown* made mean the opposite in climate writing: the point emissions
+  // begin to fall. A known word read backwards costs more than a narrow one.
+  question: { prefix: 'How close are we to', subject: 'The Brownout' },
   // TheAIMeters' live totals, under the gauge. The counter above it measures how
   // loudly the press is reporting the cost; this measures the cost itself, in
   // litres and kilowatt-hours. Neither derives from the other, which is the
