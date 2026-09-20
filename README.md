@@ -168,8 +168,9 @@ empty. It reads the database and never writes to it; point it elsewhere with
 
 The site re-checks that number on its own. Once every one of a domain's sources has a
 couple of weeks of its own history, `/<slug>` projects the measured rate to steady state
-at the live divisor and prints `DIVISOR /n SATURATED` under the gauge when an ordinary
-week no longer leaves room for one half again as busy — the failure that pegged
+at the live divisor and reads a busy (2x steady) and a crisis (3x steady) week through
+the real formula. It prints `DIVISOR /n SATURATED` under the gauge when those two
+readings sit within `MIN_HEADROOM` (8) points of each other — the failure that pegged
 cybersecurity at 94.6 the day three feeds were added to it. It only ever complains in
 that direction: a domain reading near the floor is a quiet beat, not a bad constant.
 
