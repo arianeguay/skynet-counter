@@ -2,6 +2,7 @@
 // HALF_LIFE_DAYS and DIVISOR can be chosen from measured data instead of a live
 // sweep per question. Read-only: it never scores, never writes (STU-1171).
 import { Database } from 'bun:sqlite';
+import { BUSY_MULTIPLE, CRISIS_MULTIPLE } from '@/lib/calibration';
 import { BASE, HALF_LIFE_DAYS, HORIZON_DAYS, counterFrom, decayedSignal, normalizedSignal, steadySignal } from '@/lib/counter';
 import { currentDomain } from '@/lib/domains';
 import { scoredHistory } from '@/lib/db';
@@ -119,9 +120,11 @@ grid('counter projected to steady state', (h) => steadySignal(dailyScore, h));
 // an ordinary week reads mid-gauge, and a tripled week still has somewhere to go.
 const steady = steadySignal(dailyScore);
 console.log(`\nheadroom at HALF_LIFE_DAYS=${HALF_LIFE_DAYS} (steady signal ${steady.toFixed(0)}):`);
-console.log(['  divisor', 'silent', 'quiet', 'ordinary', 'busy 2x', 'crisis 3x'].map((h) => h.padStart(10)).join(''));
+console.log(
+  ['  divisor', 'silent', 'quiet', 'ordinary', `busy ${BUSY_MULTIPLE}x`, `crisis ${CRISIS_MULTIPLE}x`].map((h) => h.padStart(10)).join('')
+);
 for (const d of DIVISORS) {
-  const cells = [0, 0.4, 1, 2, 3].map((m) => counterFrom(m * steady, BASE, d).toFixed(1).padStart(10));
+  const cells = [0, 0.4, 1, BUSY_MULTIPLE, CRISIS_MULTIPLE].map((m) => counterFrom(m * steady, BASE, d).toFixed(1).padStart(10));
   console.log([`  /${d}`.padEnd(9), ...cells].join(''));
 }
 db.close();
