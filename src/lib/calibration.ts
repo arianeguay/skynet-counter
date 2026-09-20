@@ -24,26 +24,15 @@ import { BASE, HALF_LIFE_DAYS, HEADROOM_KNEE, HORIZON_DAYS, counterFrom, steadyS
 // as the depth the two feeds beside it have to reach.
 export const SOURCE_MATURITY_DAYS = 14;
 
-// The two checkpoints this asks the gauge to keep apart — the same "busy 2x" /
-// "crisis 3x" columns `calibrate`'s own headroom table already prints, reused
-// here so the check answers the same question in the same units the page's own
-// diagnostic script does.
+// The two weeks the check asks the gauge to keep apart, as multiples of steady state.
+// `calibrate`'s headroom table imports them, so the CLI and the page check retune together.
 export const BUSY_MULTIPLE = 2;
 export const CRISIS_MULTIPLE = 3;
 
-// How many gauge points must still separate a busy week's reading from a
-// crisis week's. Before STU-1270's soft knee this check compared an unclamped
-// straight line to the literal ceiling of 100 — a hard wall the formula no
-// longer has above `HEADROOM_KNEE`, where it asymptotes instead. `crisis -
-// busy` is what "still has somewhere to go" means against a curve that never
-// quite reaches 100: shrinking toward zero is the flattening, whatever the
-// absolute reading sits at.
-//
-// Measured against the two real cases already in this file's tests: the
-// outgrown cybersecurite/32 set (the actual STU-1401 incident) separates busy
-// from crisis by 5.0 points once re-derived against the soft knee; the /64
-// divisor it was bumped to separates them by 13.3. 8 sits in the gap between
-// the two and reproduces both verdicts unchanged.
+// Gauge points that must still separate a busy week from a crisis week.
+// `crisis - busy` shrinking toward zero is the flattening of the soft knee.
+// Picked between two measured cases: the outgrown cybersecurite /32 set
+// (STU-1401) separates them by 5.0, its /64 replacement by 13.3.
 export const MIN_HEADROOM = 8;
 
 // One source's measured output over its own RSS window, the way `calibrate.ts`
@@ -144,11 +133,8 @@ export function divisorSaturation(
   const busy = counterFrom(BUSY_MULTIPLE * steady, base, divisor);
   const crisis = counterFrom(CRISIS_MULTIPLE * steady, base, divisor);
 
-  // Below the knee both readings sit on the straight line by construction, and
-  // their gap there tracks nothing but how quiet the domain is — a mature but
-  // quiet domain (STU-1217, STU-1219) can land under MIN_HEADROOM on a small
-  // divisor with plenty of ceiling left. Gating on `busy` already having
-  // crossed into the compressed range is what keeps that domain unflagged.
+  // Below the knee the gap tracks how quiet the domain is, not how saturated
+  // its divisor is (STU-1217, STU-1219).
   if (busy <= HEADROOM_KNEE) return null;
   if (crisis - busy >= MIN_HEADROOM) return null;
 
