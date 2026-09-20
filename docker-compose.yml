@@ -10,6 +10,11 @@ services:
     volumes:
       - skynet-data:/data
     restart: unless-stopped
+    labels:
+      # Built here, published to no registry: watchtower failed to pull it every
+      # night and filled its digest with a permanent error. This image's freshness
+      # comes from a rebuild, never from a pull.
+      com.centurylinklabs.watchtower.enable: "false"
 
   pipeline:
     build:
@@ -31,6 +36,8 @@ services:
       - ${HOME}/.claude:/home/bun/.claude
       - ${HOME}/.claude.json:/home/bun/.claude.json
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
 
 volumes:
   skynet-data:
