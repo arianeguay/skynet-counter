@@ -17,6 +17,24 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
 
+  # Typecheck and tests never touch the Dockerfile, so a broken stage is
+  # otherwise first seen when `green` deploys it to apollon (STU-1410).
+  docker:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [web, pipeline]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+
   # What the server deploys. `green` is main's history with the untested commits
   # left off, so the deploy watcher can fast-forward to it blind — no API call,
   # no token, and nothing to parse that could read a red run as green.
@@ -24,7 +42,7 @@ jobs:
   # It moves only on a push to main that passed `check`; a pull request never
   # reaches here, and neither does a commit whose tests failed.
   green:
-    needs: check
+    needs: [check, docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
