@@ -1,7 +1,8 @@
 // Skynet Counter — Übersicht desktop widget.
 //
-// Reads https://skynet-counter.com/api/skynet/summary, which serves the counter,
-// its timestamp and its band. Nothing here recomputes any of those: the gauge
+// Reads https://skynet-counter.com/api/skynet/summary (one counter) or
+// /api/skynet/summary/all (every counter), which serve the counter, its
+// timestamp and its band. Nothing here recomputes any of those: the gauge
 // geometry below is the one thing copied out of the site, because Übersicht
 // loads a widget as a single file and there is no bundler to import
 // `src/components/Gauge.tsx` through. Geometry is safe to copy — it is a dial
@@ -12,7 +13,14 @@
 // near the WebView's origin rules — the endpoint sets
 // `access-control-allow-origin` anyway, but curl means one less thing to break.
 
-const ENDPOINT = 'https://skynet-counter.com/api/skynet/summary';
+// 'tile'   — the default domain alone, full-size dial
+// 'column' — every domain, stacked
+// 'row'    — every domain, side by side
+// 'grid'   — every domain, three to a row
+const LAYOUT = 'tile';
+
+const SITE = 'https://skynet-counter.com';
+const ENDPOINT = LAYOUT === 'tile' ? `${SITE}/api/skynet/summary` : `${SITE}/api/skynet/summary/all`;
 
 // The pipeline sweeps hourly (PIPELINE_INTERVAL, 3600s), so polling at 15
 // minutes is already over-sampling a number that moves once an hour.
@@ -35,13 +43,15 @@ const C = {
   bone: '#d6d6d8',
   blood: '#ff2a2a',
   bloodDim: '#7a0f0f',
+  verdant: '#2fd46a',
+  verdantDim: '#0f5227',
   amber: '#d99114',
 };
 
 export const className = `
   top: 40px;
   left: 40px;
-  width: 300px;
+  width: ${LAYOUT === 'tile' ? '300px' : 'max-content'};
   padding: 18px 16px 14px;
   background: ${C.panel}e6;
   border: 1px solid ${C.hairline};
@@ -72,7 +82,17 @@ function arc(r, from, to) {
   return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
 }
 
-function Gauge({ value }) {
+// The site remaps its accent to green on a progress domain; so does the dial.
+const ACCENT = {
+  risk: { hot: C.blood, dim: C.bloodDim },
+  progress: { hot: C.verdant, dim: C.verdantDim },
+};
+
+function Gauge({ value, polarity }) {
+  const { hot, dim } = ACCENT[polarity];
+  // Every dial in a multi-counter layout shares one document, so a gradient id
+  // is per polarity rather than per widget.
+  const dialId = `skynet-dial-${polarity}`;
   const clamped = Math.min(100, Math.max(0, value));
   const angle = -SPAN + (clamped / 100) * SPAN * 2;
   const [nx, ny] = polar(R - 26, angle);
@@ -80,9 +100,9 @@ function Gauge({ value }) {
   return (
     <svg viewBox="0 0 320 210" style={{ width: '100%', display: 'block' }}>
       <defs>
-        <linearGradient id="skynet-dial" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor={C.bloodDim} />
-          <stop offset="100%" stopColor={C.blood} />
+        <linearGradient id={dialId} x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0%" stopColor={dim} />
+          <stop offset="100%" stopColor={hot} />
         </linearGradient>
         <filter id="skynet-burn" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="4" result="blur" />
@@ -97,7 +117,7 @@ function Gauge({ value }) {
       <path
         d={arc(R, -SPAN, angle)}
         fill="none"
-        stroke="url(#skynet-dial)"
+        stroke={`url(#${dialId})`}
         strokeWidth="14"
         strokeLinecap="round"
         filter="url(#skynet-burn)"
@@ -115,14 +135,14 @@ function Gauge({ value }) {
             y1={y1}
             x2={x2}
             y2={y2}
-            stroke={deg <= angle ? C.blood : C.hairline}
+            stroke={deg <= angle ? hot : C.hairline}
             strokeWidth={major ? 2 : 1}
           />
         );
       })}
 
-      <line x1={CX} y1={CY} x2={nx} y2={ny} stroke={C.blood} strokeWidth="2.5" filter="url(#skynet-burn)" />
-      <circle cx={CX} cy={CY} r="7" fill={C.void} stroke={C.blood} strokeWidth="2" />
+      <line x1={CX} y1={CY} x2={nx} y2={ny} stroke={hot} strokeWidth="2.5" filter="url(#skynet-burn)" />
+      <circle cx={CX} cy={CY} r="7" fill={C.void} stroke={hot} strokeWidth="2" />
       <text x={polar(R + 14, -SPAN)[0]} y={polar(R + 14, -SPAN)[1]} fill={C.ash} fontSize="10" textAnchor="middle">0</text>
       <text x={polar(R + 14, SPAN)[0]} y={polar(R + 14, SPAN)[1]} fill={C.ash} fontSize="10" textAnchor="middle">100</text>
     </svg>
@@ -153,7 +173,108 @@ const Dead = ({ note }) => (
   </Shell>
 );
 
-export const render = ({ output, error }) => {
+// Übersicht hands a clicked link to the default browser rather than navigating
+// the widget itself.
+const Link = ({ href, children }) => (
+  <a href={href} style={{ color: 'inherit', textDecoration: 'none', display: 'block' }}>
+    {children}
+  </a>
+);
+
+function sweepLine(updatedAt) {
+  const swept = Date.parse(updatedAt);
+  // The API returns the epoch when no sweep has ever written a counter row.
+  const never = !swept;
+  const age = Date.now() - swept;
+  const stale = never || age >= STALE_AFTER_MS;
+  const text = never ? 'NEVER RUN' : `LAST SWEEP ${ago(age)}${stale ? ' — STALE' : ''}`;
+  return { text, stale };
+}
+
+function Tile({ counter, updatedAt, status }) {
+  const sweep = sweepLine(updatedAt);
+  return (
+    <Link href={`${SITE}/`}>
+      <Shell>
+        <div style={{ margin: '10px 0 2px' }}>
+          <Gauge value={counter} polarity="risk" />
+        </div>
+
+        <div
+          style={{
+            fontSize: 40,
+            lineHeight: 1,
+            fontVariantNumeric: 'tabular-nums',
+            color: C.blood,
+            textShadow: `0 0 18px ${C.bloodDim}`,
+          }}
+        >
+          {counter.toFixed(1)}
+        </div>
+
+        <div style={{ marginTop: 8, fontSize: 10, letterSpacing: '0.25em', color: C.blood, paddingLeft: '0.25em' }}>
+          {status}
+        </div>
+
+        <div style={{ marginTop: 10, fontSize: 9, letterSpacing: '0.1em', color: sweep.stale ? C.amber : C.ash }}>
+          {sweep.text}
+        </div>
+      </Shell>
+    </Link>
+  );
+}
+
+function Card({ slug, label, polarity, counter, updatedAt, status }) {
+  const { hot, dim } = ACCENT[polarity];
+  const sweep = sweepLine(updatedAt);
+  return (
+    <Link href={`${SITE}/${slug}`}>
+      <div style={{ width: 150, textAlign: 'center' }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.25em', color: C.bone, paddingLeft: '0.25em' }}>
+          {label.toUpperCase()}
+        </div>
+        <Gauge value={counter} polarity={polarity} />
+        <div
+          style={{
+            fontSize: 24,
+            lineHeight: 1,
+            fontVariantNumeric: 'tabular-nums',
+            color: hot,
+            textShadow: `0 0 12px ${dim}`,
+          }}
+        >
+          {counter.toFixed(1)}
+        </div>
+        <div style={{ marginTop: 5, fontSize: 8, letterSpacing: '0.15em', color: hot }}>{status}</div>
+        <div style={{ marginTop: 5, fontSize: 8, letterSpacing: '0.05em', color: sweep.stale ? C.amber : C.ash }}>
+          {sweep.text}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+const GRID = {
+  column: { gridTemplateColumns: '150px' },
+  row: { gridAutoFlow: 'column', gridAutoColumns: '150px' },
+  grid: { gridTemplateColumns: 'repeat(3, 150px)' },
+};
+
+function Counters({ domains, layout }) {
+  return (
+    <Shell>
+      <div style={{ display: 'grid', gap: '14px 18px', marginTop: 12, ...GRID[layout] }}>
+        {domains.map((d) => (
+          <Card key={d.slug} {...d} />
+        ))}
+      </div>
+    </Shell>
+  );
+}
+
+// Takes the layout as an argument so the tests can draw all four; Übersicht
+// only ever calls `render`, with the constant at the top of the file.
+export function draw({ output, error }, layout) {
   if (error) return <Dead note={String(error)} />;
   if (!output) return <Dead note="NO RESPONSE FROM SKYNET-COUNTER.COM" />;
 
@@ -166,39 +287,7 @@ export const render = ({ output, error }) => {
     return <Dead note={output.trim().slice(0, 120).toUpperCase()} />;
   }
 
-  const { counter, updatedAt, status } = data;
-  const swept = Date.parse(updatedAt);
-  // The API returns the epoch when no sweep has ever written a counter row.
-  const never = !swept;
-  const age = Date.now() - swept;
-  const stale = never || age >= STALE_AFTER_MS;
+  return layout === 'tile' ? <Tile {...data} /> : <Counters domains={data} layout={layout} />;
+}
 
-  return (
-    <Shell>
-      <div style={{ margin: '10px 0 2px' }}>
-        <Gauge value={counter} />
-      </div>
-
-      <div
-        style={{
-          fontSize: 40,
-          lineHeight: 1,
-          fontVariantNumeric: 'tabular-nums',
-          color: C.blood,
-          textShadow: `0 0 18px ${C.bloodDim}`,
-        }}
-      >
-        {counter.toFixed(1)}
-      </div>
-
-      <div style={{ marginTop: 8, fontSize: 10, letterSpacing: '0.25em', color: C.blood, paddingLeft: '0.25em' }}>
-        {status}
-      </div>
-
-      <div style={{ marginTop: 10, fontSize: 9, letterSpacing: '0.1em', color: stale ? C.amber : C.ash }}>
-        {never ? 'NEVER RUN' : `LAST SWEEP ${ago(age)}`}
-        {stale && !never ? ' — STALE' : ''}
-      </div>
-    </Shell>
-  );
-};
+export const render = (props) => draw(props, LAYOUT);

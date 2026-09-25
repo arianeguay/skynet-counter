@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { render } from '../../widgets/ubersicht/skynet-counter.jsx';
+import { draw as drawAs, render } from '../../widgets/ubersicht/skynet-counter.jsx';
 
 // Not beside the widget, and not for the reason `tests/studio/` exists: Übersicht
 // loads *every* `.jsx` in its widgets directory as a widget, so a test file
@@ -83,4 +83,50 @@ test('survives a non-JSON body', () => {
   const html = draw({ output: '<html><body>502 Bad Gateway</body></html>' });
   expect(html).toContain('SIGNAL LOST');
   expect(html).toContain('502 BAD GATEWAY');
+});
+
+test('the tile links to the site', () => {
+  expect(sweep({})).toContain('href="https://skynet-counter.com/"');
+});
+
+const domains = [
+  { slug: 'cybersecurite', label: 'Cybersecurity', polarity: 'risk', counter: 41.3, status: 'ELEVATED ACTIVITY' },
+  { slug: 'frontend', label: 'Front-end', polarity: 'progress', counter: 8, status: 'STALLED' },
+].map((d) => ({ ...d, updatedAt: new Date(Date.now() - 60_000).toISOString() }));
+
+const many = (layout, list = domains) => renderToStaticMarkup(drawAs({ output: JSON.stringify(list) }, layout));
+
+test('draws every domain the API served, each linking to its own page', () => {
+  for (const layout of ['column', 'row', 'grid']) {
+    const html = many(layout);
+    expect(html).toContain('CYBERSECURITY');
+    expect(html).toContain('FRONT-END');
+    expect(html).toContain('41.3');
+    expect(html).toContain('STALLED');
+    expect(html).toContain('href="https://skynet-counter.com/cybersecurite"');
+    expect(html).toContain('href="https://skynet-counter.com/frontend"');
+  }
+});
+
+test('lays the counters out as the layout asks', () => {
+  expect(many('column')).toContain('grid-template-columns:150px');
+  expect(many('row')).toContain('grid-auto-flow:column');
+  expect(many('grid')).toContain('grid-template-columns:repeat(3, 150px)');
+});
+
+// The site paints a progress domain green; a red dial on `frontend` would read
+// as a threat the counter does not measure.
+test('draws a progress domain in green and a risk one in red', () => {
+  const html = many('column');
+  expect(html).toContain('url(#skynet-dial-risk)');
+  expect(html).toContain('url(#skynet-dial-progress)');
+  expect(html).toContain('#2fd46a');
+});
+
+test('marks one stale domain without marking the others', () => {
+  const html = many('row', [
+    domains[0],
+    { ...domains[1], updatedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() },
+  ]);
+  expect(html.match(/STALE/g)).toHaveLength(1);
 });

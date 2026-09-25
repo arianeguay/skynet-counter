@@ -1,8 +1,9 @@
 # Skynet Counter — Mac desktop widget
 
 The counter, its dial and its band, on the desktop. It reads
-`https://skynet-counter.com/api/skynet/summary` every 15 minutes and draws it —
-it never runs a sweep and never touches `data/skynet.db`.
+`https://skynet-counter.com/api/skynet/summary` (or `/summary/all` for every
+counter) every 15 minutes and draws it — it never runs a sweep and never touches
+`data/skynet.db`. Clicking a counter opens its page on the site.
 
 ## Install
 
@@ -20,6 +21,22 @@ cp skynet-counter.jsx "$HOME/Library/Application Support/Übersicht/widgets/"
 **every** `.jsx` in that directory as a widget, so copy the one file rather than
 the folder.
 
+## Picking a layout
+
+`LAYOUT` at the top of `skynet-counter.jsx`:
+
+| Value | Shows |
+|---|---|
+| `'tile'` | the default domain alone, full-size dial (the original widget) |
+| `'column'` | every domain, stacked |
+| `'row'` | every domain, side by side |
+| `'grid'` | every domain, three to a row |
+
+The multi-counter layouts read the domain list from the server, so a domain added
+to the site shows up here with no widget edit. Progress domains draw green, as on
+the site. For two layouts at once, copy the file under a second name and set
+`LAYOUT` in each.
+
 ## Moving and resizing it
 
 Both live in the `className` export at the top of `skynet-counter.jsx`:
@@ -27,7 +44,7 @@ Both live in the `className` export at the top of `skynet-counter.jsx`:
 ```js
 top: 40px;      // distance from the top of the screen
 left: 40px;     // from the left; swap for `right:` to pin to the other side
-width: 300px;   // the gauge scales with this
+width: 300px;   // the tile's gauge scales with this; the other layouts size to their cards
 ```
 
 Save the file and the widget redraws.

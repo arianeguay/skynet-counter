@@ -26,19 +26,30 @@ export function snapshotResponse(slug: string): Response {
 //   - `access-control-allow-origin`, because an Übersicht widget runs its fetch
 //     from a `file://` document and sends `Origin: null`. The payload is the
 //     same public number the site already renders to anyone.
-export function summaryResponse(slug: string): Response {
+function summary(slug: string) {
   const { counter, updatedAt } = readCounter(slug);
   // The band is the domain's, not the risk one: a widget showing STALLED for a
   // progress counter reading 8 is right, and NOMINAL would be nonsense.
   const polarity = domainBySlug(slug)?.polarity ?? 'risk';
+  return { counter, updatedAt, status: statusLine(counter, polarity) };
+}
+
+const widgetHeaders = {
+  'cache-control': 'no-store',
+  'access-control-allow-origin': '*',
+};
+
+export function summaryResponse(slug: string): Response {
+  return Response.json(summary(slug), { headers: widgetHeaders });
+}
+
+// Every domain in one poll, for the widget's multi-counter layouts. It carries
+// `slug`, `label` and `polarity` so the widget never holds its own copy of the
+// registry: a domain added here shows up on the desktop with no widget edit.
+export function allSummariesResponse(): Response {
   return Response.json(
-    { counter, updatedAt, status: statusLine(counter, polarity) },
-    {
-      headers: {
-        'cache-control': 'no-store',
-        'access-control-allow-origin': '*',
-      },
-    }
+    DOMAINS.map((d) => ({ slug: d.slug, label: d.label, polarity: d.polarity, ...summary(d.slug) })),
+    { headers: widgetHeaders }
   );
 }
 
