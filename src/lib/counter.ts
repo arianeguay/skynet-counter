@@ -162,7 +162,7 @@ export type Polarity = 'risk' | 'progress';
 // One set of thresholds, two vocabularies. The cut points are shared on purpose:
 // they describe how loud a domain is, and only the wording says whether loud is
 // alarming.
-const BANDS: Record<Polarity, readonly [number, string][]> = {
+export const BANDS: Record<Polarity, readonly [number, string][]> = {
   risk: [
     [60, 'CONTAINMENT DEGRADED'],
     [35, 'ELEVATED ACTIVITY'],

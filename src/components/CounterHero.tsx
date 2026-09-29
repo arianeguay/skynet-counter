@@ -5,7 +5,7 @@ import type { DivisorSaturation } from '@/lib/calibration';
 import { statusLine, type Polarity } from '@/lib/counter';
 import { Gauge } from './Gauge';
 import { GlitchNumber } from './GlitchNumber';
-import { TrendSparkline } from './TrendSparkline';
+import { TrendDialog } from './TrendDialog';
 
 export function CounterHero({
   counter,
@@ -137,7 +137,7 @@ export function CounterHero({
           <p className="max-w-md text-balance text-center text-xs text-ash">{tagline}</p>
         </div>
         <Gauge value={counter} />
-        <TrendSparkline history={history} />
+        <TrendDialog history={history} label={label} polarity={polarity} />
         <GlitchNumber value={counter} glitching={glitching} effect={effect} />
         <p className="text-sm tracking-[0.25em] text-signal">{status}</p>
         <p className="text-xs text-ash">
