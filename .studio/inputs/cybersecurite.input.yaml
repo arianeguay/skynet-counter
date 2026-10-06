@@ -20,12 +20,9 @@ feeds:
   # Added 2026-09-11, unmeasured — no egress to the publishers from the sandbox
   # this went in from, the same position STU-1292 shipped Radio-Canada's fils in.
   # All three are incident newsrooms on this exact beat, so they need no subject
-  # list; what they change is volume, and that is the thing to watch. The divisor
-  # in `cybersecurite.ts` is 32, calibrated on 2026-09-01 against three feeds
-  # publishing 97 points of score a day. These three publish more between them
-  # than the three above do, so the gauge will climb on the feed set rather than
-  # on the news — run `bun run calibrate` on the host once a couple of weeks of
-  # rows have accumulated, and expect the divisor to roughly double.
+  # list; what they change is volume. They pushed the feed set from 97 to 204
+  # points of score a day, and the divisor in `cybersecurite.ts` went from 32 to
+  # 64, confirmed by `bun run calibrate` on 2026-10-06 (STU-1491).
   - source: BleepingComputer
     url: https://www.bleepingcomputer.com/feed/
   - source: The Record
