@@ -329,6 +329,14 @@ as a candidate list, unmeasured, to be run through the probe rather than adopted
 trap waiting for half of it is STU-1219's, where on a beat that is entirely about AI a
 term like `ai-generated` carries subject matter and no severity at all.
 
+The same shape outside security has no table at all: software that took a team years
+reproduced by one person and a model in weeks — a solo developer's clean-room rewrites
+of seven Adobe apps is the case that raised it. No domain scores that, and it is a
+candidate for a sixth rather than entries in an existing one.
+[scripts/candidates/capability-compression.txt](scripts/candidates/capability-compression.txt)
+carries the vocabulary, the unmeasured feed list and the kill criteria; nothing becomes
+a domain until the live probe it describes has run.
+
 ### A domain can carry more than one language
 
 `environment` does, since Radio-Canada's fils environnement and techno were added
