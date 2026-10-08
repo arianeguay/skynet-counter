@@ -312,7 +312,12 @@ proof does not. Terms passed as arguments are measured beside the table without 
 in it, so a proposed entry is a number before it is a commit; `rescues` is the column
 that decides one, since a term landing only on articles that already score adds weight
 rather than reach. Reaching for live feeds is still the right probe for a domain or a
-feed that does not exist yet — there is no stored corpus to read for either.
+feed that does not exist yet — there is no stored corpus to read for either — and
+`bun run probe:live` ([scripts/live-probe.ts](scripts/live-probe.ts)) is that probe:
+same counting, plus `sourceSignal()` for the concentration check `smarthome` failed
+on its first pass. Its behaviour is settled by
+[tests/studio/live-probe.test.ts](tests/studio/live-probe.test.ts) against a local
+server; its numbers need egress, so apollon.
 
 The probe is `claude:web`-provable and `claude:local` to *run*: the corpus it wants
 exists only on the host, so the script's behaviour is settled by
@@ -334,8 +339,8 @@ reproduced by one person and a model in weeks — a solo developer's clean-room 
 of seven Adobe apps is the case that raised it. No domain scores that, and it is a
 candidate for a sixth rather than entries in an existing one.
 [scripts/candidates/capability-compression.txt](scripts/candidates/capability-compression.txt)
-carries the vocabulary, the unmeasured feed list and the kill criteria; nothing becomes
-a domain until the live probe it describes has run.
+carries the vocabulary and the kill criteria, `capability-compression.feeds` the
+unmeasured feed list; nothing becomes a domain until `probe:live` has run over both.
 
 ### A domain can carry more than one language
 

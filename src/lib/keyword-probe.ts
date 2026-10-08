@@ -98,3 +98,49 @@ export function collisions(term: string, weights: Record<string, number>): strin
     return needle.includes(other) || other.includes(needle);
   });
 }
+
+// The share of the signal above which one source is supplying the counter on its
+// own. `smarthome`'s first pass was 70% one blog and CISA's advisories were the
+// only feed carrying device vocabulary at all (STU-1217): either way the counter
+// would have measured a publisher, not a beat.
+export const CONCENTRATION_RATIO = 0.5;
+
+export interface SourcedRow {
+  source: string;
+  title: string;
+  summary: string;
+}
+
+export interface SourceStat {
+  source: string;
+  /** Articles from this source in the corpus. */
+  articles: number;
+  /** Of those, articles holding at least one of the terms. */
+  signal: number;
+  /** `signal` as a share of every source's signal combined. */
+  share: number;
+}
+
+/**
+ * Where a set of terms finds its articles, one row per source, sorted by signal.
+ *
+ * The other half of a domain's verdict: a vocabulary can mark stories and still
+ * be unusable if one publisher supplies most of them. Pass only the terms that
+ * survived `verdictOf` — a BEAT term lands on every article, so counting it
+ * here would report the feed volumes back rather than where the stories are.
+ */
+export function sourceSignal(rows: SourcedRow[], terms: readonly string[]): SourceStat[] {
+  const needles = terms.map(normalizeText).filter(Boolean);
+  const bySource = new Map<string, { articles: number; signal: number }>();
+  for (const row of rows) {
+    const text = normalizeText(`${row.title} ${row.summary}`);
+    const stat = bySource.get(row.source) ?? { articles: 0, signal: 0 };
+    stat.articles++;
+    if (needles.some((n) => text.includes(n))) stat.signal++;
+    bySource.set(row.source, stat);
+  }
+  const total = [...bySource.values()].reduce((t, s) => t + s.signal, 0);
+  return [...bySource]
+    .map(([source, s]) => ({ source, ...s, share: total === 0 ? 0 : s.signal / total }))
+    .sort((a, b) => b.signal - a.signal || a.source.localeCompare(b.source));
+}

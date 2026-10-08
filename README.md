@@ -201,6 +201,18 @@ Like `calibrate`, it reads and never writes, takes `SKYNET_DB`, and wants a real
 against a freshly seeded database every keyword lands on a fifth of the rows and every
 candidate reads dead, because the fixtures are synthesised from the table itself.
 
+`bun run probe:live` is the same count for feeds with no stored corpus yet — a domain
+that does not exist, or a feed not yet added. It fetches each feed, hydrates the linked
+pages the way `dedupe` does, gates on the shared AI subject list (`--no-gate` to skip)
+and counts. It needs egress, so it runs on the host. Beside `share` it prints where the
+story-marking terms land, per source, and flags `CONCENTRATED` when one source supplies
+over half of it.
+
+```bash
+bun run probe:live --feeds scripts/candidates/capability-compression.feeds \
+                   --candidates scripts/candidates/capability-compression.txt
+```
+
 ## AIID trend page
 
 `/aiid` is not a gauge: no divisor, no keyword scoring, no 0-100 range. It plots the

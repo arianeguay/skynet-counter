@@ -23,15 +23,11 @@
 #      SKYNET_DOMAIN=frontend    bun run probe -- --candidates scripts/candidates/capability-compression.txt
 #
 # 2. Live, the verdict. No stored corpus exists for a domain that does not, so
-#    this is the live probe from CLAUDE.md's "Picking a domain's keywords":
-#    fetch, hydrate paragraphs the way `dedupe` does, gate on AI_SUBJECT, count.
-#    Candidate feeds, none measured yet:
+#    this fetches the candidate feeds (capability-compression.feeds), hydrates
+#    paragraphs the way `dedupe` does, gates on AI_SUBJECT and counts:
 #
-#      Simon Willison        https://simonwillison.net/atom/everything/
-#      The Register software https://www.theregister.com/software/headlines.atom
-#      404 Media             https://www.404media.co/rss/
-#      Ars Technica AI       https://arstechnica.com/ai/feed/
-#      HN breadth filter     https://hnrss.org/newest?q=%22clean-room%22+OR+%22rewrote%22+OR+%22from+scratch%22+OR+%22reimplementation%22&points=50
+#      bun run probe:live --feeds scripts/candidates/capability-compression.feeds \
+#                         --candidates scripts/candidates/capability-compression.txt
 #
 #    Kill criteria, decided before the numbers: no term marking a story (under
 #    40% share) that fires at all, or one source supplying most of the signal

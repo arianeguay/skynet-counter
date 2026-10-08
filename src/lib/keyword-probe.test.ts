@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { BEAT_RATIO, collisions, probeTerms, verdictOf, type ProbeRow } from './keyword-probe';
+import { BEAT_RATIO, collisions, probeTerms, sourceSignal, verdictOf, type ProbeRow } from './keyword-probe';
 import { cybersecurite } from './domains/cybersecurite';
 
 const row = (summary: string, score = 0, title = 'A headline'): ProbeRow => ({ title, summary, score });
@@ -68,4 +68,22 @@ test('the shipped table collides with nothing, which is what makes this check me
   for (const k of Object.keys(cybersecurite.keywords)) {
     expect([k, collisions(k, cybersecurite.keywords)]).toEqual([k, []]);
   }
+});
+
+test('sourceSignal counts an article once however many terms it holds, and shares out the total', () => {
+  const rows = [
+    { source: 'A', title: 'clean-room rewrite', summary: 'a drop-in replacement' },
+    { source: 'A', title: 'x', summary: 'a clean room port' },
+    { source: 'B', title: 'x', summary: 'a drop-in replacement' },
+    { source: 'B', title: 'x', summary: 'nothing' },
+  ];
+  expect(sourceSignal(rows, ['clean-room', 'drop-in replacement'])).toEqual([
+    { source: 'A', articles: 2, signal: 2, share: 2 / 3 },
+    { source: 'B', articles: 2, signal: 1, share: 1 / 3 },
+  ]);
+});
+
+test('sourceSignal with no hits reports every source at zero rather than dividing by it', () => {
+  const stats = sourceSignal([{ source: 'A', title: 'x', summary: 'y' }], ['clean-room']);
+  expect(stats).toEqual([{ source: 'A', articles: 1, signal: 0, share: 0 }]);
 });
