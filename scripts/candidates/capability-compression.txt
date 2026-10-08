@@ -1,0 +1,71 @@
+# Candidate vocabulary for a sixth domain: the cost of building software
+# collapsing. The story shape is "what a team shipped over years, one person and
+# a model reproduced in weeks" — a solo developer announcing open-source clean-room
+# rewrites of seven Adobe apps is the case that prompted it. No table on the site
+# names it: `ai-business` needs money to move, `frontend` scores the web platform,
+# and `cybersecurite`'s uplift hole (ai-uplift.txt) is the same shape on the
+# offensive side only.
+#
+# Nothing here is a proposal, and the trap is STU-1219's at full strength: this
+# beat is entirely about AI building software, so "agentic", "coding agent" and
+# "built with" carry subject matter and no severity. Expect most of the second
+# block to come back BEAT. The design probe already found the displacement
+# phrasing dead in design press ("prompt to app", "replaces designers": zero hits
+# in 89 articles) — the open question is whether it lives in developer press.
+#
+# Two passes, in this order:
+#
+# 1. Free, on stored rows. It cannot decide the domain (those feeds were not
+#    picked for this beat) but it says whether any of these terms are dead
+#    everywhere before anyone builds a feed list for them:
+#
+#      SKYNET_DOMAIN=ai-business bun run probe -- --candidates scripts/candidates/capability-compression.txt
+#      SKYNET_DOMAIN=frontend    bun run probe -- --candidates scripts/candidates/capability-compression.txt
+#
+# 2. Live, the verdict. No stored corpus exists for a domain that does not, so
+#    this fetches the candidate feeds (capability-compression.feeds), hydrates
+#    paragraphs the way `dedupe` does, gates on AI_SUBJECT and counts:
+#
+#      bun run probe:live --feeds scripts/candidates/capability-compression.feeds \
+#                         --candidates scripts/candidates/capability-compression.txt
+#
+#    Kill criteria, decided before the numbers: no term marking a story (under
+#    40% share) that fires at all, or one source supplying most of the signal
+#    (the CISA concentration smarthome hit), means no domain.
+
+# The act. These name software being reproduced rather than written.
+# The matcher flattens punctuation, so this also reaches "clean room", and
+# the stem reaches reimplementation and reimplemented alike.
+clean-room
+reimplement
+rewrote
+rebuilt from scratch
+from scratch
+ported to
+drop-in replacement
+open-source replacement
+open source alternative
+feature parity
+
+# Who or what did it. Expect BEAT on most of these.
+coding agent
+agentic coding
+vibe cod
+ai-written
+written by ai
+built with claude
+built with codex
+single developer
+solo developer
+one developer
+
+# The claim the story is actually making: time and headcount collapsing.
+lines of code
+in a weekend
+in two weeks
+in a month
+a fraction of the cost
+used to take
+person-years
+engineer-years
+no subscription

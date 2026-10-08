@@ -1,0 +1,7 @@
+# Candidate feeds for the capability-compression probe, none measured yet. One
+# per line: the URL, then the source name. Read by `bun run probe:live --feeds`.
+https://simonwillison.net/atom/everything/ Simon Willison
+https://www.theregister.com/software/headlines.atom The Register software
+https://www.404media.co/rss/ 404 Media
+https://arstechnica.com/ai/feed/ Ars Technica AI
+https://hnrss.org/newest?q=%22clean-room%22+OR+%22rewrote%22+OR+%22from+scratch%22+OR+%22reimplementation%22&points=50 HN breadth filter
