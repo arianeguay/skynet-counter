@@ -10,9 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Same version as the Dockerfile's base image; bump both in one PR.
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
