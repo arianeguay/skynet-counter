@@ -32,10 +32,13 @@ async function seed(scenario: string, env: Record<string, string | undefined> = 
   return { code: await proc.exited, out, err };
 }
 
-const inherited = { db: process.env.SKYNET_DB, domain: process.env.SKYNET_DOMAIN };
+const inherited = { SKYNET_DB: process.env.SKYNET_DB, SKYNET_DOMAIN: process.env.SKYNET_DOMAIN };
 afterEach(() => {
-  process.env.SKYNET_DB = inherited.db;
-  process.env.SKYNET_DOMAIN = inherited.domain;
+  // Assigning undefined to process.env stores the string "undefined".
+  for (const [key, value] of Object.entries(inherited)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 });
 
 // Read back through `readSnapshot` rather than a query written here: a fixture is
