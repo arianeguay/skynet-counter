@@ -3,6 +3,7 @@ services:
     build:
       context: .
       target: web
+    mem_limit: 512m
     ports:
       - "${WEB_PORT:-3000}:3000"
     environment:
@@ -20,6 +21,7 @@ services:
     build:
       context: .
       target: pipeline
+    mem_limit: 768m
     environment:
       SKYNET_DB: /data/skynet.db
       # How often each domain sweeps: `slug:seconds` pairs. This replaces
