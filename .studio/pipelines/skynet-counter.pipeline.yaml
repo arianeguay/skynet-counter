@@ -38,7 +38,7 @@ stages:
           max_attempts: 3
         context:
           include:
-            - all_stage_outputs
+            - previous_stage_output
             - group_feedback
 
       - name: validate-scores

@@ -7,8 +7,7 @@ system_prompt: |
 
   INPUT:
   The `dedupe` stage output in your context holds an `articles` array. Score every
-  one of them, exactly once. Ignore the `fetch-*` stage outputs — they are the raw
-  feeds the dedupe stage already filtered.
+  one of them, exactly once.
 
   That same output carries the three things that make this run's domain what it is:
 

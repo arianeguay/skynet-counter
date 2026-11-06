@@ -35,6 +35,10 @@ iteration nearly every sweep, at full price each time (STU-1212). The validator 
 not read the field; it recomputes from the domain's own module, so handing the list
 over costs nothing in traceability.
 
+`score` includes `previous_stage_output`, not `all_stage_outputs`. The second one adds
+the raw `fetch` map output, 91% of a measured prompt's characters, none of which the
+scorer may use (STU-2123). `validate-scores` keeps it because it reads `dedupe` and `score`.
+
 The scoring group is skipped when `dedupe` finds nothing new
 (`condition: stages.dedupe.output.new_count > 0`), so most hourly sweeps cost zero
 tokens. Making that group run unconditionally is a cost regression, not a cleanup.
