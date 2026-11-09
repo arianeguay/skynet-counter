@@ -32,6 +32,8 @@ services:
       AIID_SYNC_INTERVAL: ${AIID_SYNC_INTERVAL:-604800}
     volumes:
       - skynet-data:/data
+      # Studio's run records, kept across a recreate like the database.
+      - studio-runs:/app/.studio/runs
       # The provider spawns `claude`, which authenticates from the host session.
       # Read-write: the CLI refreshes its own token. Both files are needed —
       # the CLI treats a missing .claude.json as an unconfigured install.
@@ -43,3 +45,4 @@ services:
 
 volumes:
   skynet-data:
+  studio-runs:

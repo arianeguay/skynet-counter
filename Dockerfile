@@ -41,6 +41,6 @@ RUN bun install -g @studio-foundation/cli@0.19.0 @anthropic-ai/claude-code \
  && chmod +x /usr/local/install/global/node_modules/@studio-foundation/cli-linux-x64*/studio
 COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
 COPY --chown=bun:bun . .
-RUN mkdir -p /data && chown bun:bun /data
+RUN mkdir -p /data /app/.studio/runs && chown bun:bun /data /app/.studio/runs
 USER bun
 CMD ["/app/docker/run-loop.sh"]

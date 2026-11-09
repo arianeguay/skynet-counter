@@ -212,11 +212,13 @@ test('the AIID sync runs on its own schedule, independent of domain sweeps', asy
 // A restart must not re-run the sync before its own interval is up, the same
 // property a domain's `.due` file already gives the studio sweeps.
 test('a restart does not re-run the AIID sync before it is due', async () => {
-  const { run, aiidRuns } = stage({ aiidInterval: 3600 });
+  const { run, aiidRuns, state } = stage({ aiidInterval: 3600 });
 
   const first = run('slow:3600');
   try {
-    await until(() => aiidRuns().length >= 1);
+    // The due file lands only after the sync exits, so its log line alone is too
+    // early to kill on: a kill in that gap is a sync the loop never booked.
+    await until(() => existsSync(join(state, 'aiid.due')));
   } finally {
     first.kill();
     await first.exited;
