@@ -323,7 +323,7 @@ on its first pass. Its behaviour is settled by
 [tests/studio/live-probe.test.ts](tests/studio/live-probe.test.ts) against a local
 server; its numbers need egress, so apollon.
 
-The probe is `claude:web`-provable and `claude:local` to *run*: the corpus it wants
+The probe is provable on any host and `host:apollon` to *run*: the corpus it wants
 exists only on the host, so the script's behaviour is settled by
 [tests/studio/keyword-probe.test.ts](tests/studio/keyword-probe.test.ts) against a
 scratch database, and its numbers are settled by apollon.
@@ -1097,11 +1097,10 @@ things follow from that and are worth not rediscovering:
 
 ## Where a Task Runs
 
-An issue is `claude:web` when it can be **both changed and verified** in a Claude Code
-web sandbox. Every file here is writable on the web, so the label is decided by the
-proof, not the edit.
+An issue's `host:*` label names where it can be **both changed and verified**. Every
+file here is writable from any host, so the label is decided by the proof, not the edit.
 
-**`claude:web` — `bun test` and `bun run typecheck` are the whole proof:**
+**No host label — `bun test` and `bun run typecheck` are the whole proof, on any host:**
 
 - the keyword tables, the matcher and the score maths (`src/lib/domains/`,
   `src/lib/keywords.ts`)
@@ -1126,10 +1125,10 @@ proof, not the edit.
   and what it records are provable without a server. Whether systemd actually starts it
   on apollon is not.
 
-**`claude:local` — anything whose proof is a real `studio run`:**
+**`host:apollon` — anything whose proof is a real `studio run`:**
 
 - **the `claude` CLI session.** The `claude-code` provider spawns the CLI and rides
-  whatever login it has. There is no API key, so there is nothing to hand a sandbox.
+  whatever login it has on apollon. There is no API key to carry elsewhere.
 - **live reads of the feeds.** A fixture proves the parser; it never proves what
   the publishers are actually emitting today.
 - **accumulated history in `data/skynet.db`.** Anything that depends on weeks of scored
@@ -1140,8 +1139,8 @@ proof, not the edit.
   above, but "does the image still build and run this" is not.
 
 Worked examples: STU-1170 (the validator never looks for keywords the scorer left out)
-is `claude:web` — the fix is a pure script and a `bun test` settles it. STU-1171
-(calibrate `BASE`, `HALF_LIFE_DAYS`, `DIVISOR`) is `claude:local` — the constants are
+needs no host label — the fix is a pure script and a `bun test` settles it. STU-1171
+(calibrate `BASE`, `HALF_LIFE_DAYS`, `DIVISOR`) is `host:apollon` — the constants are
 editable anywhere, but the only proof is a real sweep over real scored history.
 
 ### Dependencies in a worktree
