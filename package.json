@@ -17,7 +17,7 @@
     "seed": "SKYNET_DB=\"${SKYNET_DB:-/tmp/skynet-seed.db}\" bun scripts/seed.ts"
   },
   "dependencies": {
-    "next": "^15.5.0",
+    "next": "^15.5.28",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
