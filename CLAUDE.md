@@ -247,6 +247,13 @@ TypeScript, and a stale one would sweep a domain nothing serves.
 [tests/docker/run-loop.test.ts](tests/docker/run-loop.test.ts) drives the script with a
 stub `studio` on PATH, so the cadence is provable without Docker or a paid run.
 
+A failed sweep is only a log line, and nothing read it: scoring failed every sweep for
+three days before anyone noticed (HOM-1808). So each **successful** sweep pings the
+Healthchecks slug `skynet-<domain>` under `SKYNET_HC_PING_URL`, and a failure pings
+nothing. Pinging `/fail` instead would page on the one flaky sweep this loop is built to
+shrug off; a missing success page only on a run of them. The ping goes through
+`bun -e` because the image has no curl, and a ping that fails is logged and dropped.
+
 ### Deploying, and why the server pulls
 
 CI does not connect to the server; the server fetches from GitHub. A push-based deploy
