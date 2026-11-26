@@ -30,6 +30,9 @@ services:
       # How often the AIID trend page's RSS sync runs, in seconds. Weekly by
       # default: that data doesn't need the gauge feeds' hourly cadence.
       AIID_SYNC_INTERVAL: ${AIID_SYNC_INTERVAL:-604800}
+      # Healthchecks ping-key URL; each successful sweep pings `skynet-<domain>`.
+      # Empty pings nothing. Set it in `.env`, never here: the key is a secret.
+      SKYNET_HC_PING_URL: ${SKYNET_HC_PING_URL:-}
     volumes:
       - skynet-data:/data
       # Studio's run records, kept across a recreate like the database.

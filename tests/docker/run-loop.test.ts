@@ -31,11 +31,12 @@ function stage({ failing = '', aiidInterval = 3600 }: { failing?: string; aiidIn
   // (`bun scripts/aiid-sync.ts`), not a stub on PATH.
   writeFileSync(join(dir, 'scripts', 'aiid-sync.ts'), `console.log("ran"); require("fs").appendFileSync("${aiidLog}", "ran\\n");`);
 
-  const run = (schedule: string) =>
+  const run = (schedule: string, extraEnv: Record<string, string> = {}) =>
     Bun.spawn(['sh', SCRIPT], {
       cwd: dir,
       env: {
         ...process.env,
+        ...extraEnv,
         PATH: `${bin}:${process.env.PATH}`,
         SKYNET_SCHEDULE: schedule,
         SKYNET_STATE_DIR: state,
@@ -231,4 +232,47 @@ test('a restart does not re-run the AIID sync before it is due', async () => {
   await second.exited;
 
   expect(aiidRuns()).toEqual(['ran']);
+});
+
+// Nothing read the loop's own failure lines, so scoring failed every sweep for three
+// days in silence (HOM-1808). A success pings that domain's check and a failure
+// pings nothing, so only a run of failures long enough to outlast the check's grace
+// period raises an alert.
+test('a successful sweep pings its domain check and a failed one pings nothing', async () => {
+  const pings: string[] = [];
+  const server = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const url = new URL(req.url);
+      pings.push(url.pathname + url.search);
+      return new Response('OK');
+    },
+  });
+  const { run, sweeps } = stage({ failing: 'broken' });
+  const proc = run('broken:1 healthy:1', { SKYNET_HC_PING_URL: `http://127.0.0.1:${server.port}/key` });
+  try {
+    await until(() => pings.length >= 2 && sweeps().filter((d) => d === 'broken').length >= 2);
+  } finally {
+    proc.kill();
+    await proc.exited;
+    server.stop(true);
+  }
+
+  expect(pings.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(pings)).toEqual(new Set(['/key/skynet-healthy?create=1']));
+});
+
+// Monitoring must not become the thing that takes the loop down: a check service
+// that is unreachable costs a log line, never a sweep.
+test('an unreachable ping URL does not stop the sweeps', async () => {
+  const { run, sweeps } = stage();
+  const proc = run('fast:1', { SKYNET_HC_PING_URL: 'http://127.0.0.1:9/key' });
+  try {
+    await until(() => sweeps().length >= 3);
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+
+  expect(sweeps().length).toBeGreaterThanOrEqual(3);
 });
