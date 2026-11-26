@@ -258,6 +258,14 @@ with `web`. A failed sweep logs and waits for that domain's next tick rather tha
 taking the container down, and a hung one is cut off at `SWEEP_TIMEOUT` (default 1800s)
 so it cannot hold up another domain's turn.
 
+A failed sweep is silent by itself, so set `SKYNET_HC_PING_URL` in `.env` to a
+[Healthchecks](https://healthchecks.io) ping-key URL (`https://hc-ping.com/<ping-key>`)
+to be told when one keeps failing. Each successful sweep pings the slug
+`skynet-<domain>`, which Healthchecks creates on the first ping, and a failed one pings
+nothing: the check goes down once a domain has gone its whole period plus grace without
+a successful sweep. Set each check's period to a few of that domain's sweeps, so one
+flaky feed stays quiet.
+
 Each sweep pays for its own scoring stage, so the period is per domain rather than
 uniform: a feed set that publishes one article a week does not need the cadence that a
 security newswire does.

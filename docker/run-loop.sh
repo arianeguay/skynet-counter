@@ -53,6 +53,23 @@ MAX_SLEEP="${MAX_SLEEP:-900}"
 AIID_SYNC_INTERVAL="${AIID_SYNC_INTERVAL:-604800}"
 AIID_DUE_FILE="$STATE/aiid.due"
 
+# A Healthchecks ping-key URL (`https://hc-ping.com/<ping-key>`), unset by
+# default. Each successful sweep pings the slug `skynet-<domain>`, created on
+# first ping, and a failed one sends nothing: the check goes down only once a
+# domain has gone a whole grace period without a successful sweep, so one flaky
+# feed stays silent while a scoring stage failing every sweep does not.
+HC_PING_URL="${SKYNET_HC_PING_URL:-}"
+
+# The image has no curl. A ping that fails is logged and dropped, because
+# monitoring must not be what takes the loop down.
+ping_success() {
+  [ -n "$HC_PING_URL" ] || return 0
+  HC_URL="$HC_PING_URL/skynet-$1?create=1" bun -e '
+    const res = await fetch(process.env.HC_URL, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  ' >/dev/null 2>&1 || echo "--- $1 healthcheck ping failed" >&2
+}
+
 while true; do
   now=$(date +%s)
   wake=$((now + MAX_SLEEP))
@@ -71,7 +88,7 @@ while true; do
       # start would compound that drift into a domain sweeping early.
       if SKYNET_DOMAIN="$domain" timeout "$SWEEP_TIMEOUT" \
         studio run skynet-counter --input-file ".studio/inputs/$domain.input.yaml"; then
-        :
+        ping_success "$domain"
       else
         echo "--- $domain sweep failed, next attempt in ${interval}s" >&2
       fi
